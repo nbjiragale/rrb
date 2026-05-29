@@ -2,7 +2,7 @@
 
 A single-user, AI-assisted study platform for RRB NTPC prep. See [`CLAUDE.md`](./CLAUDE.md) for the full architecture, hard rules, schema, and conventions, and the four spec docs it references.
 
-## Status: v3 (planner, mocks, and PYQ analysis)
+## Status: v4 (diagnosis, grounded generation, current affairs)
 
 **v1 — the daily review loop:**
 - **Concept ontology** — author concepts under subject → topic → subtopic (A2).
@@ -23,7 +23,16 @@ A single-user, AI-assisted study platform for RRB NTPC prep. See [`CLAUDE.md`](.
 - **Weak-spot practice** — auto-targets the highest exam-weight, lowest-mastery questions (C2).
 - **Mock tests** — full or sectional, timed, first-class skipping, real negative marking; post-mock topic/pacing analysis (D1–D5).
 
-Later phases (diagnosis, generation, calibration, dashboard) plug in without reworking this core — see `CLAUDE.md §11`.
+**v4 — diagnosis, generation, current affairs:**
+- **Auto-diagnosis** — every wrong practice answer is classified out-of-band into one of seven misconception kinds with a reusable label + rationale, stored in `misconception` / `misconception_hit`; the nightly batch sweeps any wrong attempts the UI missed (F1).
+- **Forgotten-but-once-known** — a wrong answer on a concept with a matured review card is tagged `stale` and the card is resurfaced for review, not treated as a new gap (F4).
+- **Diagnosis view** — recurring traps per concept with counts, plus the error-kind shape per subject (F2, F3) at `/diagnosis`.
+- **Grounded generation behind the verify gate** — math/reasoning generated freely then **independently re-solved**; GA generated **only from source text** with every fact re-checked against it; only items that clear the gate are stored `verified=true` and served (C3, C4, L4) at `/generate`.
+- **Adversarial drills** — from a diagnosed mistake, generate a variant that forces the missed distinction, with lineage via `parent_question_id` (C5).
+- **Flag a bad question** — one tap un-verifies it and queues it for review (C6).
+- **Current affairs** — ingest a dated source whose `raw_text` is retained for grounding, then build grounded SRS cards / GA questions strictly from it (H1, H2) at `/current-affairs`.
+
+Later phases (calibration, semantic memory, dashboard) plug in without reworking this core — see `CLAUDE.md §11`.
 
 ### Nightly batch
 
@@ -52,11 +61,11 @@ npm test   # pure unit tests (BKT student model), no DB needed
    cp .env.example .env
    # edit DATABASE_URL
    ```
-3. **Run migrations** (0001 = v1 review tables; 0002 = `question`, `attempt`, `concept_mastery`, `mock_session`):
+3. **Run migrations** (0001 = v1 review tables; 0002 = practice/mastery; 0003 = planner/mocks; 0004 = `misconception`, `misconception_hit`, `current_affairs_item`):
    ```bash
    npm run db:migrate
    ```
-   For the AI tutor, also set `LLM_BASE_URL` / `LLM_API_KEY` (and optional model names) in `.env`.
+   For the AI tutor, diagnosis, and question/card generation, set `LLM_BASE_URL` / `LLM_API_KEY` (and optional model names) in `.env`. These features degrade gracefully when the LLM is unconfigured.
 4. **(Optional) Seed** an exam config + sample concept/cards:
    ```bash
    node --experimental-strip-types scripts/seed.ts

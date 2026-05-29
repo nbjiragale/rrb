@@ -120,6 +120,46 @@ export interface StudyPlan {
   generated_at: string;
 }
 
+// The seven failure modes (CLAUDE.md §7). `stale` is special — memory decay on
+// a once-known card, not a knowledge gap.
+export type MisconceptionKind =
+  | "confusion"
+  | "factual_gap"
+  | "partial_rule"
+  | "computational"
+  | "conceptual"
+  | "trap"
+  | "stale";
+
+export interface Misconception {
+  id: number;
+  concept_id: number;
+  label: string;
+  description: string;
+  kind: MisconceptionKind;
+  created_at: string;
+}
+
+export interface MisconceptionHit {
+  id: number;
+  attempt_id: number;
+  misconception_id: number;
+  ai_confidence: number | null;
+  ai_rationale: string | null;
+  diagnosed_at: string;
+}
+
+export interface CurrentAffairsItem {
+  id: number;
+  ca_date: string;
+  source_url: string | null;
+  raw_text: string;
+  summary: string | null;
+  category: string | null;
+  exam_probability: number | null;
+  processed_at: string | null;
+}
+
 export interface MockSession {
   id: number;
   type: MockType;

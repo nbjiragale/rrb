@@ -38,6 +38,34 @@ export async function listCards(): Promise<DueCard[]> {
   );
 }
 
+// F4 — has this concept a card that was once known (matured into review state
+// with at least one rep)? A wrong attempt on such a concept is memory decay
+// (`stale`), not a fresh gap.
+export async function conceptHasMaturedCard(conceptId: number): Promise<boolean> {
+  const row = await queryOne<{ one: number }>(
+    `SELECT 1 AS one FROM card
+     WHERE concept_id = $1 AND state = 'review' AND reps > 0
+     LIMIT 1`,
+    [conceptId]
+  );
+  return row !== null;
+}
+
+// F4 — bring a concept's matured cards forward so the forgotten fact resurfaces
+// in the review queue. We move due_at to now rather than fabricating a review
+// event (review is append-only) — FSRS reschedules properly on the next rating.
+// Returns the number of cards surfaced.
+export async function surfaceConceptCards(conceptId: number): Promise<number> {
+  const rows = await query<{ id: number }>(
+    `UPDATE card
+       SET due_at = now()
+     WHERE concept_id = $1 AND state = 'review' AND reps > 0 AND due_at > now()
+     RETURNING id`,
+    [conceptId]
+  );
+  return rows.length;
+}
+
 export async function createCard(input: {
   concept_id: number;
   front: string;

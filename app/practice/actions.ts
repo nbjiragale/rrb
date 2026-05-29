@@ -1,8 +1,9 @@
 "use server";
 
 import { z } from "zod";
-import { getQuestionForGrading } from "@/lib/db/queries/questions";
+import { getQuestionForGrading, flagQuestion } from "@/lib/db/queries/questions";
 import { recordAttempt } from "@/lib/services/attempt";
+import { tryDiagnoseAttempt } from "@/lib/services/diagnosis";
 
 const schema = z.object({
   questionId: z.number().int().positive(),
@@ -12,6 +13,7 @@ const schema = z.object({
 });
 
 export interface AttemptResult {
+  attemptId: number;
   isCorrect: boolean;
   correctOption: number;
   explanation: string | null;
@@ -32,7 +34,7 @@ export async function submitPracticeAttempt(input: {
 
   const isCorrect = selectedOption === question.correct_option;
 
-  await recordAttempt({
+  const attemptId = await recordAttempt({
     questionId,
     conceptId: question.concept_id,
     selectedOption,
@@ -43,8 +45,30 @@ export async function submitPracticeAttempt(input: {
   });
 
   return {
+    attemptId,
     isCorrect,
     correctOption: question.correct_option,
     explanation: question.explanation,
   };
+}
+
+// F1 — diagnose a wrong attempt out of the grading path (latency is acceptable;
+// architecture §9 says async is fine). Returns a short label for the UI, or null.
+export async function diagnoseAttemptAction(
+  attemptId: number
+): Promise<{ kind: string; description: string } | null> {
+  const id = z.number().int().positive().parse(attemptId);
+  const r = await tryDiagnoseAttempt(id);
+  return r ? { kind: r.kind, description: r.description } : null;
+}
+
+// C6 — flag a bad question: one tap excludes it from serving and queues it for review.
+export async function flagQuestionAction(input: {
+  questionId: number;
+  reason: string | null;
+}): Promise<{ ok: boolean }> {
+  const questionId = z.number().int().positive().parse(input.questionId);
+  const reason = z.string().trim().max(500).nullable().parse(input.reason ?? null);
+  const ok = await flagQuestion(questionId, reason);
+  return { ok };
 }
