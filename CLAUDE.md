@@ -14,6 +14,18 @@ A **single-user, AI-assisted study platform** for one person preparing for the R
 
 **Core paradigm:** the LLM is **stateless**. All memory lives in Postgres and is retrieved into the prompt at call time. Personalization = retrieval + a small classical student model (BKT + FSRS + logistic regression). Never fine-tune.
 
+### Three memory layers (the mental model)
+All three live in Postgres:
+- **Structured (source of truth):** exact per-concept stats, error logs, mastery — plain SQL tables (`concept_mastery`, `attempt`, `misconception_hit`, …).
+- **Semantic:** free text (Feynman explanations, doubts, notes) embedded into pgvector (`interaction.embedding`) for fuzzy recall.
+- **Profile:** a nightly LLM-written paragraph (`learner_profile.summary_text`) compressing the whole learner, cached into every tutor prompt.
+
+### Working agreement (how to build)
+- **Build in phases (§11). Ship v1 completely and get it running before starting v2.** The app must run end-to-end at every phase boundary.
+- **Ask for clarification only when genuinely blocked.** Otherwise proceed and state your assumptions inline.
+- Each phase delivers: migrations + the runnable increment + updated README run steps.
+- Align all code to the schema in §5. If you need a new column/table, add a migration and note why — don't silently drift from the schema.
+
 ---
 
 ## 2. Hard rules — non-negotiable acceptance gates
@@ -99,6 +111,9 @@ Create tables in this order (respects FK constraints). Full annotated SQL lives 
 ```sql
 CREATE EXTENSION IF NOT EXISTS vector;  -- pgvector; embedding dim 1024
 
+-- Exam parameterisation (one row per instance)
+exam_config         -- sections JSONB + negative_mark_ratio + locale + exam_date
+
 -- Core ontology
 concept             -- subject > topic > subtopic > concept hierarchy
 concept_edge        -- prerequisite / related / contrasts_with graph
@@ -131,6 +146,20 @@ study_plan          -- daily/weekly ordered new_concepts + review_load
 - `attempt`, `review`, `interaction` rows are INSERT-only; never UPDATE or DELETE.
 - `concept_mastery` is the only table that gets UPDATE (derived state).
 
+### `exam_config` — parameterise, never hardcode
+The exam structure is data, not code. Mocks, the EV trainer, and the planner all read it.
+```
+sections            JSONB   -- [{name, questions, marks, time_s}, ...]
+negative_mark_ratio REAL    -- 0.3333 (1/3) for RRB NTPC
+exam_date           DATE    -- drives the planner's exam-date backstop
+locale              TEXT    -- 'en' default; schema is language-agnostic for later
+```
+
+### Question sources (three trust levels feeding `question`)
+- **PYQ — ingested, never generated.** Real past papers tagged to `concept_id` with `exam_year`/`exam_stage`. The difficulty anchor everything else calibrates against.
+- **AI-generated — math/reasoning generated freely + auto-verified; GA generated ONLY from source text.** `gen_source` records the grounding (`ca:<id>` / `passage` / `pyq:<id>`).
+- **Adversarial — generated from a wrong attempt + its diagnosed misconception** to force the missed distinction; lineage via `parent_question_id`.
+
 ---
 
 ## 6. Design system
@@ -150,6 +179,7 @@ The visual language mirrors **Claude.ai's web interface**: warm ivory canvas, on
   --text-secondary: #5C5A54;
   --text-muted:     #82807A;
   --text-on-accent: #FFFFFF;
+  --text-on-dark:   #FAF9F5;   /* text on dark surfaces (tooltips) */
   --border-default: #E6E3DA;
   --border-strong:  #D8D4C8;
   --accent:         #D97757;   /* primary actions ONLY */
@@ -161,13 +191,53 @@ The visual language mirrors **Claude.ai's web interface**: warm ivory canvas, on
   --danger:         #BF5340;  --danger-subtle:  #F4E4DF;
   --mastery-0: #E6E3DA; --mastery-1: #E8C9BC; --mastery-2: #EBD2A6;
   --mastery-3: #CFD9B8; --mastery-4: #A9C7B0;
-  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 16px; --radius-xl: 24px;
+  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 16px; --radius-xl: 24px; --radius-full: 9999px;
   --shadow-xs: 0 1px 2px rgba(40,38,36,0.04);
   --shadow-sm: 0 1px 3px rgba(40,38,36,0.06),0 1px 2px rgba(40,38,36,0.04);
   --shadow-md: 0 4px 12px rgba(40,38,36,0.08);
-  --shadow-lg: 0 12px 28px rgba(40,38,36,0.12);
+  --shadow-lg: 0 12px 28px rgba(40,38,36,0.12);  /* modals/menus only */
+  --space-unit: 4px;  /* scale: 4 8 12 16 20 24 32 40 48 64 */
+
+  /* Fonts — Styrene A is proprietary; fallback stack keeps the clean grotesque character */
+  --font-sans:  "Styrene A", ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Inter", Arial, sans-serif;
+  --font-serif: "Tiempos Text", "Source Serif 4", "Georgia", serif;  /* large hero headings ONLY */
+  --font-mono:  ui-monospace, "SF Mono", "JetBrains Mono", "Menlo", monospace;  /* timers + numeric stats */
 }
 ```
+
+### Typography
+Default everything to `--font-sans`. Use `--font-serif` only for an optional large dashboard hero. Use `--font-mono` for the mock-test timer and any numeric stats so digits align.
+
+| Token | Size | Line-height | Weight | Use |
+|---|---|---|---|---|
+| `display` | 36 | 1.15 | 500 | dashboard hero (rare) |
+| `h1` | 28 | 1.25 | 600 | page titles |
+| `h2` | 22 | 1.3 | 600 | section headings |
+| `h3` | 18 | 1.4 | 600 | card titles |
+| `body-lg` | 17 | 1.6 | 400 | tutor answers, card faces, reading |
+| `body` | 15 | 1.55 | 400 | default UI text |
+| `small` | 13 | 1.5 | 400 | meta, secondary |
+| `caption` | 12 | 1.45 | 500 | labels/tags (often uppercase, +0.02em tracking) |
+
+- Weights **400 / 500 / 600 only** — never 700+.
+- Reading containers (tutor replies, explanations): cap width at **65–72ch**.
+
+### Spacing & layout
+- **Scale (px):** 4, 8, 12, 16, 20, 24, 32, 40, 48, 64 — multiples of 4 only.
+- **Page gutters:** 24 mobile, 32–48 desktop.
+- **Card padding:** 20 compact / 24 default / 32 feature.
+- **Stack rhythm:** 8 tight, 16 grouped, 24–32 between sections.
+- **Content max-widths:** app shell ~1200px; reading/review column ~680–720px; tutor chat column ~720–760px.
+- **Layout shell:** left sidebar (nav) on `--bg-subtle` + main area on `--bg-canvas`. Sidebar collapsible; on mobile it becomes a bottom tab bar or drawer.
+
+### Accessibility & contrast (don't skip)
+- `--accent` on white is ~3.4:1 — fine for fills, icons, and large/bold text, **NOT for small body text.** For coral text on light, use ≥16px medium, else use `--accent-strong` or `--text-primary`.
+- White text on `--accent`: OK for button labels ≥15px medium; if smaller/thin, switch button bg to `--accent-strong`.
+- Body text always `--text-primary` on canvas/surface (~12:1).
+- Respect `prefers-reduced-motion`: disable non-essential motion.
+
+### Iconography
+Line icons, ~1.5px stroke, rounded joins (**lucide-react** fits). Default icon color `--text-secondary`; `--accent` only for the active/primary thing. No photographic imagery in the core app; empty states use a single muted icon + one line of guidance.
 
 ### Tailwind config key extensions
 
@@ -184,6 +254,8 @@ colors: {
   mastery: { 0:"#E6E3DA", 1:"#E8C9BC", 2:"#EBD2A6", 3:"#CFD9B8", 4:"#A9C7B0" },
 }
 ```
+
+Also extend `fontFamily` (sans/serif/mono), `fontSize` (the type-scale tokens above), `borderRadius` (sm/md/lg/xl/full), `boxShadow` (xs/sm/md/lg), `ringColor.focus`, and `maxWidth` (`read: "72ch"`, `shell: "1200px"`, `column: "720px"`). The complete config is in `UIdesignspec.md §10` — copy it verbatim.
 
 ### Design principles (enforce in every component)
 
@@ -207,7 +279,19 @@ Badge (success):   bg-success-subtle text-success rounded-full px-2.5 py-0.5 cap
 Badge (danger):    bg-danger-subtle text-danger rounded-full px-2.5 py-0.5 caption
 Nav item active:   bg-active text-primary font-medium + 2-3px accent left border (NOT full coral fill)
 Tab active:        text-primary + 2px accent underline (underline style, not boxed)
+Modal:             bg-surface rounded-xl p-6 shadow-lg max-w-md; scrim bg-[#262624]/30 backdrop-blur-[2px]
+Toast:             bg-surface border border-default rounded-lg shadow-md p-4 + semantic dot; auto-dismiss
+Tooltip:           bg-[#262624] text-on-dark caption rounded-md px-2 py-1 shadow-md (small, dark, quiet)
+Progress:          track bg-active rounded-full h-2, fill bg-accent (use mastery color for mastery bars)
+Destructive btn:   secondary style but text-danger border-danger/40, hover bg-danger-subtle (rare)
 ```
+
+### Do / Don't
+- ❌ Pure white page backgrounds or `#000` text.
+- ❌ Coral on large areas, multiple competing accents, or bright saturated semantic colors.
+- ❌ Heavy drop shadows, thick borders, boxed/cluttered layouts.
+- ❌ Bold 700+ weights, cramped spacing, bouncy/parallax motion.
+- ❌ Dark mode, or full-coral active nav items.
 
 ---
 
@@ -252,6 +336,22 @@ EXAM BACKSTOP: as exam_date nears, new intake → 0
 ### FSRS scheduling
 
 Use `ts-fsrs` directly. Write `review` rows on every rating. Update `card.stability`, `card.difficulty`, `card.due_at`, `card.state`. Never re-implement FSRS — use the library.
+
+### Misconception taxonomy (diagnosis)
+
+Two-level structure: the specific `label` ("confuses_president_governor_pardon") lets the tutor say *"you've confused 72 and 161 three times"*; the `kind` lets the dashboard aggregate across concepts. The seven `kind` values:
+
+| kind | meaning |
+|---|---|
+| `confusion` | mixes two similar concepts |
+| `factual_gap` | simply doesn't know the fact |
+| `partial_rule` | knows the rule, misses an edge case |
+| `computational` | right method, arithmetic slip |
+| `conceptual` | wrong underlying mental model |
+| `trap` | fell for a distractor / misread the question |
+| `stale` | knew it once, forgot (correlates with FSRS lapse) |
+
+**`stale` is special:** when an attempt is wrong **and** the linked card has prior successful reviews, tag it `stale` and let FSRS reschedule — it's memory decay, not a knowledge gap. Don't treat it as new.
 
 ---
 
@@ -347,7 +447,12 @@ Build and **fully ship** each phase before starting the next. The app must run e
 
 ### Study Planner (v3)
 - `bg-surface rounded-lg` card; concept rows with name + `small text-muted` reason + priority chip.
-- "Low-energy day → reviews only" toggle at the top.
+- Review-load summary at the top. "Low-energy day → reviews only" toggle.
+
+### Diagnosis / Mistakes (v4)
+- Per-concept list of recurring misconceptions: label + count chip + `kind` tag (semantic-subtle tints per kind).
+- "Confident-but-wrong" items flagged with a small `danger` marker.
+- Keep the tone and color factual and non-judgmental.
 
 ### Dashboard / Insights (v6)
 - Heatmap: concept/topic grid colored by mastery scale (0–4). Legend below. Tap → drill-in.
