@@ -2,7 +2,7 @@
 
 A single-user, AI-assisted study platform for RRB NTPC prep. See [`CLAUDE.md`](./CLAUDE.md) for the full architecture, hard rules, schema, and conventions, and the four spec docs it references.
 
-## Status: v2 (practice, mastery, and the AI tutor)
+## Status: v3 (planner, mocks, and PYQ analysis)
 
 **v1 — the daily review loop:**
 - **Concept ontology** — author concepts under subject → topic → subtopic (A2).
@@ -16,7 +16,18 @@ A single-user, AI-assisted study platform for RRB NTPC prep. See [`CLAUDE.md`](.
 - **Student model (BKT)** — `concept_mastery.p_known` updated per attempt inside a transaction; derived mastery level (the foundation for the planner and heatmap).
 - **AI tutor** — per-concept chat that assembles the read-path context (mastery + recent errors) and answers via the **provider-agnostic LLM router**; personalization is retrieval, never fine-tuning (E1, E2, K1, L1).
 
-Later phases (planner, mocks, diagnosis, generation, dashboard) plug in without reworking this core — see `CLAUDE.md §11`.
+**v3 — planning, mocks, and PYQ analysis:**
+- **Knowledge graph** — author prerequisite / contrasts-with links between concepts (A3).
+- **PYQ analysis** — the nightly batch aggregates ingested PYQs into `pyq_topic_stats` and pushes frequency into `concept.exam_weight`.
+- **Study planner** — priority-ordered new concepts (`exam_weight × (1 − p_known)`), gated by prerequisites, capped by capacity, energy-aware, with an exam-date backstop (I1–I5).
+- **Weak-spot practice** — auto-targets the highest exam-weight, lowest-mastery questions (C2).
+- **Mock tests** — full or sectional, timed, first-class skipping, real negative marking; post-mock topic/pacing analysis (D1–D5).
+
+Later phases (diagnosis, generation, calibration, dashboard) plug in without reworking this core — see `CLAUDE.md §11`.
+
+### Nightly batch
+
+PYQ-stat recompute + plan generation run via the cron endpoint `GET /api/cron` (protect with `CRON_SECRET`; point Vercel Cron at it). You can also trigger a plan from the Planner page.
 
 > Deferred within v2: offline review sync (B4) — tracked, not yet built.
 

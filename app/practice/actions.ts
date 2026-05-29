@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { getQuestionForGrading } from "@/lib/db/queries/questions";
-import { recordPracticeAttempt } from "@/lib/services/practice";
+import { recordAttempt } from "@/lib/services/attempt";
 
 const schema = z.object({
   questionId: z.number().int().positive(),
@@ -32,13 +32,14 @@ export async function submitPracticeAttempt(input: {
 
   const isCorrect = selectedOption === question.correct_option;
 
-  await recordPracticeAttempt({
+  await recordAttempt({
     questionId,
     conceptId: question.concept_id,
     selectedOption,
     isCorrect,
-    confidence,
+    confidence: confidence as 1 | 2 | 3 | 4 | 5,
     timeMs,
+    context: "practice",
   });
 
   return {

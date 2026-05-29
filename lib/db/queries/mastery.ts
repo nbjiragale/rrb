@@ -50,3 +50,30 @@ export async function upsertMastery(row: ConceptMastery, executor?: Executor): P
 export async function listMastery(): Promise<ConceptMastery[]> {
   return query<ConceptMastery>(`SELECT * FROM concept_mastery`);
 }
+
+export interface WeakConcept {
+  concept_id: number;
+  name: string;
+  subject: string;
+  topic: string;
+  p_known: number;
+  exam_weight: number;
+  priority: number;
+}
+
+// C2 — weak-spot targeting: lowest p_known × highest exam_weight first.
+// Concepts with no mastery row default to p_known = 0.1 (treated as weak).
+export async function listWeakConcepts(limit = 20): Promise<WeakConcept[]> {
+  return query<WeakConcept>(
+    `SELECT c.id AS concept_id, c.name, c.subject, c.topic,
+            COALESCE(m.p_known, 0.1) AS p_known,
+            c.exam_weight,
+            c.exam_weight * (1 - COALESCE(m.p_known, 0.1)) AS priority
+     FROM concept c
+     LEFT JOIN concept_mastery m ON m.concept_id = c.id
+     WHERE EXISTS (SELECT 1 FROM question q WHERE q.concept_id = c.id AND q.verified = true)
+     ORDER BY priority DESC
+     LIMIT $1`,
+    [limit]
+  );
+}

@@ -2,14 +2,27 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Layers, BookOpen, GraduationCap, PencilLine, MessageCircle, Upload } from "lucide-react";
+import {
+  Layers,
+  BookOpen,
+  GraduationCap,
+  PencilLine,
+  MessageCircle,
+  Upload,
+  CalendarCheck,
+  Timer,
+  Share2,
+} from "lucide-react";
 
 const items = [
   { href: "/review", label: "Review", icon: GraduationCap },
   { href: "/practice", label: "Practice", icon: PencilLine },
+  { href: "/mock", label: "Mock", icon: Timer },
+  { href: "/planner", label: "Planner", icon: CalendarCheck },
   { href: "/tutor", label: "Tutor", icon: MessageCircle },
   { href: "/cards", label: "Cards", icon: Layers },
   { href: "/concepts", label: "Concepts", icon: BookOpen },
+  { href: "/graph", label: "Graph", icon: Share2 },
   { href: "/ingest", label: "Ingest", icon: Upload },
 ];
 
@@ -42,12 +55,18 @@ export function Sidebar() {
   );
 }
 
+// The daily-use core for the small-screen bottom bar (the full set lives in the
+// desktop sidebar). Keeps the bar uncrowded (UIdesignspec §5).
+const mobileItems = items.filter((i) =>
+  ["/review", "/practice", "/mock", "/planner", "/tutor"].includes(i.href)
+);
+
 // Mobile bottom tab bar — the sidebar's small-screen form (UIdesignspec §5).
 export function MobileTabBar() {
   const pathname = usePathname();
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-10 flex border-t border-border bg-subtle">
-      {items.map(({ href, label, icon: Icon }) => {
+      {mobileItems.map(({ href, label, icon: Icon }) => {
         const active = pathname === href || pathname.startsWith(href + "/");
         return (
           <Link

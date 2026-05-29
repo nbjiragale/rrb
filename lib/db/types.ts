@@ -91,3 +91,44 @@ export interface ConceptMastery {
   last_seen_at: string | null;
   last_correct_at: string | null;
 }
+
+export type RelationType = "prerequisite" | "related" | "contrasts_with";
+export type PlanHorizon = "day" | "week";
+export type MockType = "full_cbt1" | "full_cbt2" | "sectional";
+
+export interface ConceptEdge {
+  source_id: number;
+  target_id: number;
+  relation_type: RelationType;
+  weight: number;
+}
+
+export interface PlannedConcept {
+  concept_id: number;
+  order: number;
+  priority: number;
+  reason: string;
+}
+
+export interface StudyPlan {
+  id: number;
+  plan_date: string;
+  horizon: PlanHorizon;
+  new_concepts: PlannedConcept[];
+  review_load: number | null;
+  capacity_note: string | null;
+  generated_at: string;
+}
+
+export interface MockSession {
+  id: number;
+  type: MockType;
+  started_at: string;
+  completed_at: string | null;
+  total_questions: number | null;
+  attempted_count: number | null;
+  score: number | null;
+  accuracy: number | null;
+  time_limit_s: number | null;
+  pacing_data: { q: number; cumulative_ms: number }[] | null;
+}

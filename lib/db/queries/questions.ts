@@ -16,13 +16,62 @@ export async function getPracticeQuestions(
   );
 }
 
+export type GradingRow = Pick<Question, "id" | "concept_id" | "correct_option" | "explanation">;
+
 // Server-authoritative lookup for grading — never trust the client's answer.
-export async function getQuestionForGrading(
-  id: number
-): Promise<Pick<Question, "id" | "concept_id" | "correct_option" | "explanation"> | null> {
-  return queryOne(
+export async function getQuestionForGrading(id: number): Promise<GradingRow | null> {
+  return queryOne<GradingRow>(
     `SELECT id, concept_id, correct_option, explanation FROM question WHERE id = $1 AND verified = true`,
     [id]
+  );
+}
+
+export interface MockGradingRow {
+  id: number;
+  concept_id: number;
+  correct_option: number;
+  topic: string;
+}
+
+// Batch grading lookup (mock submit), with topic for the post-mock breakdown.
+export async function getQuestionsForGrading(ids: number[]): Promise<MockGradingRow[]> {
+  if (ids.length === 0) return [];
+  return query<MockGradingRow>(
+    `SELECT q.id, q.concept_id, q.correct_option, c.topic
+     FROM question q JOIN concept c ON c.id = q.concept_id
+     WHERE q.id = ANY($1) AND q.verified = true`,
+    [ids]
+  );
+}
+
+// C2 — weak-spot targeting: verified questions ordered by concept priority
+// (exam_weight × (1 − p_known)), so time goes where it matters most.
+export async function getWeakSpotQuestions(limit = 20): Promise<PracticeQuestion[]> {
+  return query<PracticeQuestion>(
+    `SELECT q.id, q.concept_id, q.stem, q.options
+     FROM question q
+     JOIN concept c ON c.id = q.concept_id
+     LEFT JOIN concept_mastery m ON m.concept_id = c.id
+     WHERE q.verified = true
+     ORDER BY c.exam_weight * (1 - COALESCE(m.p_known, 0.1)) DESC, random()
+     LIMIT $1`,
+    [limit]
+  );
+}
+
+// Mock question selection: verified questions for a subject, random order.
+export async function getQuestionsBySubject(
+  subject: string,
+  limit: number
+): Promise<PracticeQuestion[]> {
+  return query<PracticeQuestion>(
+    `SELECT q.id, q.concept_id, q.stem, q.options
+     FROM question q
+     JOIN concept c ON c.id = q.concept_id
+     WHERE c.subject = $1 AND q.verified = true
+     ORDER BY random()
+     LIMIT $2`,
+    [subject, limit]
   );
 }
 

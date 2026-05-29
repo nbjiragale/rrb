@@ -50,6 +50,37 @@ async function main() {
     ]
   );
 
+  // A math + reasoning concept with one PYQ each, so a full mock spans sections.
+  const math = await client.query(
+    `INSERT INTO concept (name, subject, topic) VALUES ('Percentages', 'math', 'Arithmetic') RETURNING id`
+  );
+  await client.query(
+    `INSERT INTO question (concept_id, stem, options, correct_option, explanation, source, exam_year, exam_stage, verified)
+     VALUES ($1, $2, $3::jsonb, $4, $5, 'pyq', 2021, 'cbt1', true)`,
+    [
+      math.rows[0].id,
+      "What is 15% of 240?",
+      JSON.stringify(["30", "36", "40", "45"]),
+      1,
+      "15% of 240 = 0.15 × 240 = 36.",
+    ]
+  );
+
+  const reasoning = await client.query(
+    `INSERT INTO concept (name, subject, topic) VALUES ('Number series', 'reasoning', 'Series') RETURNING id`
+  );
+  await client.query(
+    `INSERT INTO question (concept_id, stem, options, correct_option, explanation, source, exam_year, exam_stage, verified)
+     VALUES ($1, $2, $3::jsonb, $4, $5, 'pyq', 2021, 'cbt1', true)`,
+    [
+      reasoning.rows[0].id,
+      "Find the next term: 2, 6, 12, 20, ?",
+      JSON.stringify(["28", "30", "32", "42"]),
+      1,
+      "Differences are 4, 6, 8, 10 → next is 20 + 10 = 30.",
+    ]
+  );
+
   await client.end();
   console.log("seed complete");
 }

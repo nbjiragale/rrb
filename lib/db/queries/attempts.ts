@@ -6,8 +6,9 @@ export async function insertAttempt(
   input: {
     question_id: number;
     concept_id: number;
+    mock_session_id?: number | null;
     selected_option: number | null;
-    is_correct: boolean;
+    is_correct: boolean | null;
     confidence: Confidence | null;
     time_taken_ms: number | null;
     context: AttemptContext;
@@ -16,12 +17,13 @@ export async function insertAttempt(
 ): Promise<number> {
   const row = await queryOne<{ id: number }>(
     `INSERT INTO attempt
-       (question_id, concept_id, selected_option, is_correct, confidence, time_taken_ms, context)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+       (question_id, concept_id, mock_session_id, selected_option, is_correct, confidence, time_taken_ms, context)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING id`,
     [
       input.question_id,
       input.concept_id,
+      input.mock_session_id ?? null,
       input.selected_option,
       input.is_correct,
       input.confidence,

@@ -1,20 +1,39 @@
 import Link from "next/link";
 import { listConcepts, getConcept } from "@/lib/db/queries/concepts";
-import { getPracticeQuestions } from "@/lib/db/queries/questions";
+import { getPracticeQuestions, getWeakSpotQuestions } from "@/lib/db/queries/questions";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { PracticeSession } from "@/components/practice/PracticeSession";
 
 export const dynamic = "force-dynamic";
 
-// C1 — practise on a chosen concept. ?concept=<id> picks the topic.
+// C1 — practise on a chosen concept (?concept=<id>); C2 — weak spots (?mode=weak).
 export default async function PracticePage({
   searchParams,
 }: {
-  searchParams: Promise<{ concept?: string }>;
+  searchParams: Promise<{ concept?: string; mode?: string }>;
 }) {
-  const { concept } = await searchParams;
+  const { concept, mode } = await searchParams;
   const conceptId = concept ? Number(concept) : null;
+
+  if (mode === "weak") {
+    const questions = await getWeakSpotQuestions();
+    if (questions.length === 0) {
+      return <Empty message="No verified questions yet. Ingest some on the Ingest page." />;
+    }
+    return (
+      <div>
+        <div className="mx-auto max-w-column px-6 pt-8">
+          <Link href="/practice" className="text-small text-accent-strong">
+            ← All topics
+          </Link>
+          <h1 className="mt-2 text-h2">Weak spots</h1>
+          <p className="text-secondary text-small">Highest exam-weight, lowest mastery first.</p>
+        </div>
+        <PracticeSession questions={questions} />
+      </div>
+    );
+  }
 
   if (conceptId) {
     const [picked, questions] = await Promise.all([
@@ -54,6 +73,15 @@ export default async function PracticePage({
         <Empty message="Add concepts and ingest questions first." />
       ) : (
         <div className="grid gap-3">
+          <Link href="/practice?mode=weak">
+            <Card className="p-4 flex items-center justify-between gap-4 border-accent-border bg-accent-subtle hover:bg-accent-subtle/70 transition-colors duration-150">
+              <div>
+                <p className="text-body font-medium text-accent-strong">Fix my weak spots</p>
+                <p className="text-small text-secondary">Auto-targeted by exam weight × weakness.</p>
+              </div>
+              <Badge tone="accent">C2</Badge>
+            </Card>
+          </Link>
           {concepts.map((c) => (
             <Link key={c.id} href={`/practice?concept=${c.id}`}>
               <Card className="p-4 flex items-center justify-between gap-4 hover:bg-hover transition-colors duration-150">
