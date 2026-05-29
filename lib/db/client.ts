@@ -1,4 +1,4 @@
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 
 // Single owned Postgres (Hard Rule §5). Connection via DATABASE_URL.
 declare global {
@@ -15,20 +15,44 @@ const pool =
 
 if (process.env.NODE_ENV !== "production") global.__pgPool = pool;
 
+// Anything with `.query` — the pool, or a client inside a transaction.
+export type Executor = Pick<Pool, "query"> | Pick<PoolClient, "query">;
+
 export async function query<T = Record<string, unknown>>(
   text: string,
-  params: unknown[] = []
+  params: unknown[] = [],
+  executor: Executor = pool
 ): Promise<T[]> {
-  const res = await pool.query(text, params);
+  const res = await executor.query(text, params);
   return res.rows as T[];
 }
 
 export async function queryOne<T = Record<string, unknown>>(
   text: string,
-  params: unknown[] = []
+  params: unknown[] = [],
+  executor: Executor = pool
 ): Promise<T | null> {
-  const rows = await query<T>(text, params);
+  const rows = await query<T>(text, params, executor);
   return rows[0] ?? null;
+}
+
+// Run a set of writes atomically. The callback receives the transaction client
+// to thread into query-layer functions via their `executor` param.
+export async function withTransaction<T>(
+  fn: (client: PoolClient) => Promise<T>
+): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await fn(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 export { pool };

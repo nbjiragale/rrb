@@ -52,3 +52,42 @@ export interface ExamConfig {
   sections: { name: string; questions: number; marks: number; time_s: number }[];
   created_at: string;
 }
+
+export type QuestionSource = "pyq" | "ai_generated" | "adversarial";
+export type AttemptContext = "mock" | "practice" | "feynman" | "quiz";
+export type MasteryLevel = "new" | "learning" | "review" | "mastered";
+export type Confidence = 1 | 2 | 3 | 4 | 5;
+
+export interface Question {
+  id: number;
+  concept_id: number;
+  stem: string;
+  options: string[];
+  correct_option: number;
+  explanation: string | null;
+  difficulty: number;
+  source: QuestionSource;
+  is_adversarial: boolean;
+  parent_question_id: number | null;
+  exam_year: number | null;
+  exam_stage: string | null;
+  gen_source: string | null;
+  verified: boolean;
+  created_at: string;
+}
+
+// A question as served to the learner — never includes the answer/explanation.
+export type PracticeQuestion = Pick<Question, "id" | "concept_id" | "stem" | "options">;
+
+export interface ConceptMastery {
+  concept_id: number;
+  attempts: number;
+  correct: number;
+  wrong: number;
+  p_known: number;
+  avg_confidence: number | null;
+  calibration_error: number | null;
+  mastery_level: MasteryLevel;
+  last_seen_at: string | null;
+  last_correct_at: string | null;
+}

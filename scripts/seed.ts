@@ -37,6 +37,19 @@ async function main() {
     [conceptId]
   );
 
+  // A verified PYQ so /practice and /tutor have something to work with.
+  await client.query(
+    `INSERT INTO question (concept_id, stem, options, correct_option, explanation, source, exam_year, exam_stage, verified)
+     VALUES ($1, $2, $3::jsonb, $4, $5, 'pyq', 2019, 'cbt1', true)`,
+    [
+      conceptId,
+      "Under which Article can the President of India grant pardons?",
+      JSON.stringify(["Article 61", "Article 72", "Article 161", "Article 76"]),
+      1,
+      "Article 72 grants the President pardon power; Article 161 is the Governor's equivalent.",
+    ]
+  );
+
   await client.end();
   console.log("seed complete");
 }

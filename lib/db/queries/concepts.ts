@@ -7,6 +7,10 @@ export async function listConcepts(): Promise<Concept[]> {
   );
 }
 
+export async function getConcept(id: number): Promise<Concept | null> {
+  return queryOne<Concept>(`SELECT * FROM concept WHERE id = $1`, [id]);
+}
+
 export async function createConcept(input: {
   name: string;
   subject: Subject;

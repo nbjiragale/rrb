@@ -2,20 +2,33 @@
 
 A single-user, AI-assisted study platform for RRB NTPC prep. See [`CLAUDE.md`](./CLAUDE.md) for the full architecture, hard rules, schema, and conventions, and the four spec docs it references.
 
-## Status: v1 (the daily review loop)
+## Status: v2 (practice, mastery, and the AI tutor)
 
-This phase ships the core spaced-repetition loop end-to-end:
-
+**v1 — the daily review loop:**
 - **Concept ontology** — author concepts under subject → topic → subtopic (A2).
 - **Manual card creation** — hand-add review cards to a concept (A6).
-- **Due queue + FSRS review loop** — see what's due, rate again/hard/good/easy; `ts-fsrs` reschedules and every event is logged append-only (B1, B2, B3).
+- **Due queue + FSRS review loop** — rate again/hard/good/easy; `ts-fsrs` reschedules; every event logged append-only; new-card intake capped and paused on backlog (B1, B2, B3).
 - **Responsive, installable PWA** on your own Postgres (L2, L3).
 
-Later phases (PYQ practice, mastery/BKT, tutor, planner, mocks, diagnosis, generation, dashboard) plug in without reworking this core — see `CLAUDE.md §11`.
+**v2 — practice + memory + tutor:**
+- **PYQ ingestion** — tag a past-paper question to a concept with year/stage; duplicates flagged; stored verified (A5).
+- **Topic practice** — pick a concept, answer MCQs; **confidence (1–5) captured before reveal**; attempts logged append-only with timing (C1, G1).
+- **Student model (BKT)** — `concept_mastery.p_known` updated per attempt inside a transaction; derived mastery level (the foundation for the planner and heatmap).
+- **AI tutor** — per-concept chat that assembles the read-path context (mastery + recent errors) and answers via the **provider-agnostic LLM router**; personalization is retrieval, never fine-tuning (E1, E2, K1, L1).
+
+Later phases (planner, mocks, diagnosis, generation, dashboard) plug in without reworking this core — see `CLAUDE.md §11`.
+
+> Deferred within v2: offline review sync (B4) — tracked, not yet built.
 
 ## Tech
 
-Next.js (App Router, server actions) · Postgres + pgvector · `ts-fsrs` · Tailwind (Claude.ai-style tokens) · PWA.
+Next.js (App Router, server actions) · Postgres + pgvector · `ts-fsrs` · provider-agnostic LLM router (Anthropic-compatible) · Tailwind (Claude.ai-style tokens) · PWA.
+
+## Tests
+
+```bash
+npm test   # pure unit tests (BKT student model), no DB needed
+```
 
 ## Setup
 
@@ -28,10 +41,11 @@ Next.js (App Router, server actions) · Postgres + pgvector · `ts-fsrs` · Tail
    cp .env.example .env
    # edit DATABASE_URL
    ```
-3. **Run migrations** (creates `exam_config`, `concept`, `card`, `review`):
+3. **Run migrations** (0001 = v1 review tables; 0002 = `question`, `attempt`, `concept_mastery`, `mock_session`):
    ```bash
    npm run db:migrate
    ```
+   For the AI tutor, also set `LLM_BASE_URL` / `LLM_API_KEY` (and optional model names) in `.env`.
 4. **(Optional) Seed** an exam config + sample concept/cards:
    ```bash
    node --experimental-strip-types scripts/seed.ts

@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Layers, BookOpen, GraduationCap } from "lucide-react";
+import { Layers, BookOpen, GraduationCap, PencilLine, MessageCircle, Upload } from "lucide-react";
 
 const items = [
   { href: "/review", label: "Review", icon: GraduationCap },
+  { href: "/practice", label: "Practice", icon: PencilLine },
+  { href: "/tutor", label: "Tutor", icon: MessageCircle },
   { href: "/cards", label: "Cards", icon: Layers },
   { href: "/concepts", label: "Concepts", icon: BookOpen },
+  { href: "/ingest", label: "Ingest", icon: Upload },
 ];
 
 export function Sidebar() {
