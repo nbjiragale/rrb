@@ -4,7 +4,12 @@ import { useRef, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Segmented } from "@/components/ui/Segmented";
-import { submitPracticeAttempt, type AttemptResult } from "@/app/practice/actions";
+import {
+  submitPracticeAttempt,
+  diagnoseAttemptAction,
+  flagQuestionAction,
+  type AttemptResult,
+} from "@/app/practice/actions";
 import type { PracticeQuestion } from "@/lib/db/types";
 
 const CONFIDENCE = [1, 2, 3, 4, 5].map((n) => ({ value: n, label: String(n) }));
@@ -34,6 +39,8 @@ export function PracticeSession({ questions }: { questions: PracticeQuestion[] }
   const [confidence, setConfidence] = useState<number | null>(null);
   const [result, setResult] = useState<AttemptResult | null>(null);
   const [pending, setPending] = useState(false);
+  const [diagnosis, setDiagnosis] = useState<{ kind: string; description: string } | null>(null);
+  const [flagged, setFlagged] = useState(false);
   const shownAt = useRef<number>(Date.now());
 
   const current = questions[index];
@@ -58,9 +65,21 @@ export function PracticeSession({ questions }: { questions: PracticeQuestion[] }
         timeMs: Date.now() - shownAt.current,
       });
       setResult(res);
+      // F1 — diagnose wrong answers off the critical path; surface the label quietly.
+      if (!res.isCorrect) {
+        diagnoseAttemptAction(res.attemptId)
+          .then(setDiagnosis)
+          .catch(() => {});
+      }
     } finally {
       setPending(false);
     }
+  }
+
+  async function flag() {
+    if (flagged) return;
+    setFlagged(true);
+    await flagQuestionAction({ questionId: current.id, reason: null }).catch(() => {});
   }
 
   function next() {
@@ -68,6 +87,8 @@ export function PracticeSession({ questions }: { questions: PracticeQuestion[] }
     setSelected(null);
     setConfidence(null);
     setResult(null);
+    setDiagnosis(null);
+    setFlagged(false);
     shownAt.current = Date.now();
   }
 
@@ -123,13 +144,29 @@ export function PracticeSession({ questions }: { questions: PracticeQuestion[] }
             </p>
           </div>
           {result.explanation && (
-            <div className="mb-6 rounded-lg bg-subtle p-4">
+            <div className="mb-4 rounded-lg bg-subtle p-4">
               <p className="text-body whitespace-pre-wrap text-secondary">{result.explanation}</p>
             </div>
           )}
-          <Button variant="secondary" onClick={next}>
-            {index + 1 < questions.length ? "Next question" : "Finish"}
-          </Button>
+          {!result.isCorrect && diagnosis && (
+            <p className="mb-4 text-small text-muted">
+              <span className="text-secondary">Likely {diagnosis.kind.replace(/_/g, " ")}:</span>{" "}
+              {diagnosis.description}
+            </p>
+          )}
+          <div className="flex items-center gap-3">
+            <Button variant="secondary" onClick={next}>
+              {index + 1 < questions.length ? "Next question" : "Finish"}
+            </Button>
+            <button
+              type="button"
+              onClick={flag}
+              disabled={flagged}
+              className="text-small text-muted hover:text-danger disabled:text-muted disabled:no-underline underline transition-colors duration-150"
+            >
+              {flagged ? "Flagged — thanks" : "Flag this question"}
+            </button>
+          </div>
         </div>
       )}
     </div>

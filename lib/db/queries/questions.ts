@@ -91,6 +91,78 @@ export async function findDuplicateQuestion(
   return row?.id ?? null;
 }
 
+// Full row for generation lineage (C5): the parent question an adversarial
+// variant is built from. Includes the answer — server-side only, never served.
+export type QuestionDetail = Pick<
+  Question,
+  "id" | "concept_id" | "stem" | "options" | "correct_option" | "explanation" | "gen_source"
+>;
+
+export async function getQuestionDetail(id: number): Promise<QuestionDetail | null> {
+  return queryOne<QuestionDetail>(
+    `SELECT id, concept_id, stem, options, correct_option, explanation, gen_source
+     FROM question WHERE id = $1`,
+    [id]
+  );
+}
+
+// Persist a generated question (math/reasoning, GA, or adversarial). `verified`
+// is set ONLY by the verify gate (lib/llm/verify.ts) — never hand-passed true
+// from a UI action (Hard Rule §2 / §10). `gen_source` records the grounding ref
+// ('ca:<id>' / 'passage' / 'pyq:<id>') so every fact traces to a source.
+export async function createGeneratedQuestion(
+  input: {
+    concept_id: number;
+    stem: string;
+    options: string[];
+    correct_option: number;
+    explanation?: string | null;
+    source: "ai_generated" | "adversarial";
+    gen_source: string;
+    is_adversarial?: boolean;
+    parent_question_id?: number | null;
+    difficulty?: number | null;
+    verified: boolean;
+  },
+  executor?: Executor
+): Promise<Question> {
+  const row = await queryOne<Question>(
+    `INSERT INTO question
+       (concept_id, stem, options, correct_option, explanation, difficulty,
+        source, is_adversarial, parent_question_id, gen_source, verified)
+     VALUES ($1, $2, $3::jsonb, $4, $5, COALESCE($6, 0.5), $7, $8, $9, $10, $11)
+     RETURNING *`,
+    [
+      input.concept_id,
+      input.stem,
+      JSON.stringify(input.options),
+      input.correct_option,
+      input.explanation ?? null,
+      input.difficulty ?? null,
+      input.source,
+      input.is_adversarial ?? false,
+      input.parent_question_id ?? null,
+      input.gen_source,
+      input.verified,
+    ],
+    executor
+  );
+  return row!;
+}
+
+// C6 — flag a bad question: unverify it (so serve queries exclude it) and record
+// why/when for review. Returns false if the question doesn't exist.
+export async function flagQuestion(id: number, reason: string | null): Promise<boolean> {
+  const row = await queryOne<{ id: number }>(
+    `UPDATE question
+       SET verified = false, flagged_at = now(), flag_reason = $2
+     WHERE id = $1
+     RETURNING id`,
+    [id, reason]
+  );
+  return row !== null;
+}
+
 export async function createQuestion(input: {
   concept_id: number;
   stem: string;

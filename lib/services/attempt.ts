@@ -21,8 +21,9 @@ export interface AttemptInput {
 // Write path (architecture §9, step 1) for a single attempt inside a given
 // transaction: log the immutable attempt, then fold it into the derived student
 // model via BKT. Shared by practice (one attempt) and mocks (many, one txn).
-export async function applyAttemptTx(tx: Executor, input: AttemptInput): Promise<void> {
-  await insertAttempt(
+// Returns the inserted attempt id so callers can trigger downstream diagnosis (F1).
+export async function applyAttemptTx(tx: Executor, input: AttemptInput): Promise<number> {
+  const attemptId = await insertAttempt(
     {
       question_id: input.questionId,
       concept_id: input.conceptId,
@@ -37,16 +38,17 @@ export async function applyAttemptTx(tx: Executor, input: AttemptInput): Promise
   );
 
   // Skips carry no knowledge signal — log only, leave mastery untouched.
-  if (input.isCorrect === null) return;
+  if (input.isCorrect === null) return attemptId;
 
   const prev = await getMasteryForUpdate(input.conceptId, tx);
   const next = foldAttempt(prev, input.conceptId, input.isCorrect, input.confidence, new Date());
   await upsertMastery(next, tx);
+  return attemptId;
 }
 
-// Convenience for a single standalone attempt (practice).
-export async function recordAttempt(input: AttemptInput): Promise<void> {
-  await withTransaction((tx) => applyAttemptTx(tx, input));
+// Convenience for a single standalone attempt (practice). Returns the attempt id.
+export async function recordAttempt(input: AttemptInput): Promise<number> {
+  return withTransaction((tx) => applyAttemptTx(tx, input));
 }
 
 // Pure: fold one graded attempt into a concept's mastery row.

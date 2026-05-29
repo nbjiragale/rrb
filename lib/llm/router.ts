@@ -25,6 +25,12 @@ function modelForTask(task: LlmTask): string {
   return task === "tutor" ? strong : cheap;
 }
 
+// Lets non-core features (diagnosis, generation) degrade gracefully when the
+// LLM isn't configured, instead of throwing into the user's flow.
+export function isLlmConfigured(): boolean {
+  return Boolean(process.env.LLM_BASE_URL && process.env.LLM_API_KEY);
+}
+
 export async function complete(opts: CompleteOptions): Promise<string> {
   const baseUrl = process.env.LLM_BASE_URL;
   const apiKey = process.env.LLM_API_KEY;

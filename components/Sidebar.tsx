@@ -12,6 +12,9 @@ import {
   CalendarCheck,
   Timer,
   Share2,
+  Stethoscope,
+  Sparkles,
+  Newspaper,
 } from "lucide-react";
 
 const items = [
@@ -20,6 +23,9 @@ const items = [
   { href: "/mock", label: "Mock", icon: Timer },
   { href: "/planner", label: "Planner", icon: CalendarCheck },
   { href: "/tutor", label: "Tutor", icon: MessageCircle },
+  { href: "/diagnosis", label: "Diagnosis", icon: Stethoscope },
+  { href: "/generate", label: "Generate", icon: Sparkles },
+  { href: "/current-affairs", label: "Current affairs", icon: Newspaper },
   { href: "/cards", label: "Cards", icon: Layers },
   { href: "/concepts", label: "Concepts", icon: BookOpen },
   { href: "/graph", label: "Graph", icon: Share2 },

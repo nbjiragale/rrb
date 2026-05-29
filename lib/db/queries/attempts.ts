@@ -35,6 +35,56 @@ export async function insertAttempt(
   return row!.id;
 }
 
+export interface AttemptForDiagnosis {
+  attempt_id: number;
+  concept_id: number;
+  concept_name: string;
+  subject: string;
+  question_id: number;
+  stem: string;
+  options: string[];
+  correct_option: number;
+  selected_option: number | null;
+  selected_text: string | null;
+  correct_text: string;
+  is_correct: boolean | null;
+  confidence: number | null;
+}
+
+// Everything the diagnosis LLM call needs about one wrong attempt (F1).
+export async function getAttemptForDiagnosis(
+  attemptId: number
+): Promise<AttemptForDiagnosis | null> {
+  return queryOne<AttemptForDiagnosis>(
+    `SELECT a.id AS attempt_id, a.concept_id, c.name AS concept_name, c.subject,
+            q.id AS question_id, q.stem, q.options, q.correct_option,
+            a.selected_option,
+            CASE WHEN a.selected_option IS NULL THEN NULL
+                 ELSE q.options ->> a.selected_option END AS selected_text,
+            q.options ->> q.correct_option AS correct_text,
+            a.is_correct, a.confidence
+     FROM attempt a
+     JOIN question q ON q.id = a.question_id
+     JOIN concept c ON c.id = a.concept_id
+     WHERE a.id = $1`,
+    [attemptId]
+  );
+}
+
+// Nightly safety net (F1): wrong attempts with no diagnosis yet, newest first.
+// Bounded by the caller to keep LLM cost in check (Hard Rule §4).
+export async function getUndiagnosedWrongAttempts(limit = 50): Promise<{ id: number }[]> {
+  return query<{ id: number }>(
+    `SELECT a.id
+     FROM attempt a
+     LEFT JOIN misconception_hit h ON h.attempt_id = a.id
+     WHERE a.is_correct = false AND h.id IS NULL
+     ORDER BY a.attempted_at DESC
+     LIMIT $1`,
+    [limit]
+  );
+}
+
 export interface RecentError {
   attempted_at: string;
   stem: string;
