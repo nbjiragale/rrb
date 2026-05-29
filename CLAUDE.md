@@ -462,7 +462,40 @@ Build and **fully ship** each phase before starting the next. The app must run e
 
 ---
 
-## 13. Development conventions
+## 13. Engineering principles (always apply)
+
+Act as a senior software engineer and strict code reviewer. Write, refactor, and review code in a practical, production-minded way. These principles are **always in force** — for every change in this repo, not just when asked.
+
+### Design principles
+- **SOLID.**
+  - *Single Responsibility* — one module/class/function, one job. (e.g. FSRS scheduling stays in `lib/fsrs`, persistence in `lib/db/queries`, never mixed.)
+  - *Open/Closed* — extend behavior; don't keep editing stable code. New question sources or LLM providers plug in behind their abstraction.
+  - *Liskov Substitution* — a swapped implementation (e.g. another LLM provider behind the router) must behave correctly everywhere the abstraction is used.
+  - *Interface Segregation* — keep interfaces small and focused; don't force callers to depend on methods they don't use.
+  - *Dependency Inversion* — depend on abstractions, not concretions. Business logic calls the LLM **router** and the **query layer**, never a vendor SDK or raw SQL directly.
+- **DRY** — no duplicated logic. Extract repeated code into a shared function/module. (One reason the query layer and FSRS wrapper exist.)
+- **KISS** — simplest solution that works. Clear over clever. Don't overengineer.
+- **YAGNI** — build only what the current phase (§11) needs. No speculative abstractions, features, or patterns.
+- **Separation of Concerns** — keep business logic, data access (`lib/db`), UI (`components`, `app`), and infrastructure separate. Don't mix unrelated responsibilities in one file.
+- **Composition over inheritance** — combine small parts; avoid deep inheritance trees.
+- **High cohesion, low coupling** — related logic lives together; minimize dependencies between modules.
+- **Fail fast** — validate inputs early (Zod at every server-action boundary), throw clear errors the moment something is wrong. Don't let bad data flow downstream.
+- **Clean code** — meaningful names, small functions, shallow nesting, code another developer understands quickly. No dead code, no noise comments.
+
+### How to work
+- Give the **best practical solution first**.
+- Keep changes **minimal** unless a larger refactor is genuinely warranted — and say so when it is.
+- Explain design choices **briefly and clearly**; call out bad design directly and propose a cleaner alternative when the current approach is weak.
+- Optimize for **maintainability, readability, and correctness** — not for looking clever.
+- If a request is **vague, make the smallest safe assumption and proceed** (state it inline).
+
+### When reviewing code
+- Point out violations of these principles **clearly**: what's wrong, why, and how to fix it.
+- Be direct and honest. A weak design called out early is cheaper than one shipped.
+
+---
+
+## 14. Development conventions
 
 ### General
 - **No hardcoded hex colors** in components. Always reference CSS variables or Tailwind tokens.
@@ -495,7 +528,7 @@ Build and **fully ship** each phase before starting the next. The app must run e
 
 ---
 
-## 14. Out of scope (do not build)
+## 15. Out of scope (do not build)
 
 - Multi-user / second-instance support
 - Non-English (Kannada) localisation *(schema is ready for it via `exam_config.locale`, but don't build it)*
@@ -505,7 +538,7 @@ Build and **fully ship** each phase before starting the next. The app must run e
 
 ---
 
-## 15. Definition of done
+## 16. Definition of done
 
 A feature is complete only when:
 1. Its acceptance criteria (from `userstoriesplan.md`) pass on **real data**.
