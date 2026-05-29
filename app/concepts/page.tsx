@@ -1,13 +1,11 @@
 import { listConcepts } from "@/lib/db/queries/concepts";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Label, Input, Select } from "@/components/ui/Field";
 import { addConcept } from "./actions";
 
 export const dynamic = "force-dynamic";
-
-const inputCls =
-  "w-full bg-surface border border-border-strong rounded-md px-3.5 py-2.5 text-body text-primary placeholder:text-muted focus:border-accent focus:outline-none focus-visible:ring-4 focus-visible:ring-focus";
-const labelCls = "block text-caption uppercase tracking-[0.02em] text-secondary mb-1.5";
 
 export default async function ConceptsPage() {
   const concepts = await listConcepts();
@@ -20,34 +18,31 @@ export default async function ConceptsPage() {
         <h2 className="text-h3 mb-4">Add a concept</h2>
         <form action={addConcept} className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <label className={labelCls} htmlFor="name">Name</label>
-            <input id="name" name="name" required className={inputCls}
-              placeholder="President's pardon power (Art. 72)" />
+            <Label htmlFor="name">Name</Label>
+            <Input id="name" name="name" required placeholder="President's pardon power (Art. 72)" />
           </div>
           <div>
-            <label className={labelCls} htmlFor="subject">Subject</label>
-            <select id="subject" name="subject" className={inputCls} defaultValue="ga">
+            <Label htmlFor="subject">Subject</Label>
+            <Select id="subject" name="subject" defaultValue="ga">
               <option value="math">math</option>
               <option value="reasoning">reasoning</option>
               <option value="ga">ga</option>
-            </select>
+            </Select>
           </div>
           <div>
-            <label className={labelCls} htmlFor="topic">Topic</label>
-            <input id="topic" name="topic" required className={inputCls} placeholder="Indian Polity" />
+            <Label htmlFor="topic">Topic</Label>
+            <Input id="topic" name="topic" required placeholder="Indian Polity" />
           </div>
           <div>
-            <label className={labelCls} htmlFor="subtopic">Subtopic (optional)</label>
-            <input id="subtopic" name="subtopic" className={inputCls} placeholder="Powers of the President" />
+            <Label htmlFor="subtopic">Subtopic (optional)</Label>
+            <Input id="subtopic" name="subtopic" placeholder="Powers of the President" />
           </div>
           <div>
-            <label className={labelCls} htmlFor="description">Description (optional)</label>
-            <input id="description" name="description" className={inputCls} />
+            <Label htmlFor="description">Description (optional)</Label>
+            <Input id="description" name="description" />
           </div>
           <div className="sm:col-span-2">
-            <button className="rounded-md bg-accent px-5 py-2.5 text-body font-medium text-on-accent hover:bg-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-4 focus-visible:ring-focus">
-              Add concept
-            </button>
+            <Button type="submit">Add concept</Button>
           </div>
         </form>
       </Card>

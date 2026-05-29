@@ -3,13 +3,11 @@ import { listCards } from "@/lib/db/queries/cards";
 import { listConcepts } from "@/lib/db/queries/concepts";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Label, Input, Textarea, Select } from "@/components/ui/Field";
 import { addCard } from "./actions";
 
 export const dynamic = "force-dynamic";
-
-const inputCls =
-  "w-full bg-surface border border-border-strong rounded-md px-3.5 py-2.5 text-body text-primary placeholder:text-muted focus:border-accent focus:outline-none focus-visible:ring-4 focus-visible:ring-focus";
-const labelCls = "block text-caption uppercase tracking-[0.02em] text-secondary mb-1.5";
 
 const stateTone = (s: string) =>
   s === "new" ? "accent" : s === "relearning" ? "warning" : "neutral";
@@ -36,41 +34,38 @@ export default async function CardsPage() {
           <h2 className="text-h3 mb-4">Add a card</h2>
           <form action={addCard} className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className={labelCls} htmlFor="concept_id">Concept</label>
-              <select id="concept_id" name="concept_id" required className={inputCls}>
+              <Label htmlFor="concept_id">Concept</Label>
+              <Select id="concept_id" name="concept_id" required>
                 {concepts.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name} ({c.subject})
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div>
-              <label className={labelCls} htmlFor="card_type">Type</label>
-              <select id="card_type" name="card_type" className={inputCls} defaultValue="recall">
+              <Label htmlFor="card_type">Type</Label>
+              <Select id="card_type" name="card_type" defaultValue="recall">
                 <option value="recall">recall</option>
                 <option value="cloze">cloze</option>
                 <option value="mcq">mcq</option>
-              </select>
+              </Select>
             </div>
             <div className="sm:col-span-2">
-              <label className={labelCls} htmlFor="front">Front</label>
-              <textarea id="front" name="front" required rows={2} className={inputCls}
+              <Label htmlFor="front">Front</Label>
+              <Textarea id="front" name="front" required rows={2}
                 placeholder="Which article gives the President pardon power?" />
             </div>
             <div className="sm:col-span-2">
-              <label className={labelCls} htmlFor="back">Back</label>
-              <textarea id="back" name="back" required rows={2} className={inputCls}
-                placeholder="Article 72." />
+              <Label htmlFor="back">Back</Label>
+              <Textarea id="back" name="back" required rows={2} placeholder="Article 72." />
             </div>
             <div className="sm:col-span-2">
-              <label className={labelCls} htmlFor="source_ref">Source (optional)</label>
-              <input id="source_ref" name="source_ref" className={inputCls} placeholder="NCERT Class 9 Polity" />
+              <Label htmlFor="source_ref">Source (optional)</Label>
+              <Input id="source_ref" name="source_ref" placeholder="NCERT Class 9 Polity" />
             </div>
             <div className="sm:col-span-2">
-              <button className="rounded-md bg-accent px-5 py-2.5 text-body font-medium text-on-accent hover:bg-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-4 focus-visible:ring-focus">
-                Add card
-              </button>
+              <Button type="submit">Add card</Button>
             </div>
           </form>
         </Card>

@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 import { rateCard } from "@/app/review/actions";
 import type { DueCard, Rating } from "@/lib/db/types";
 
@@ -92,24 +93,22 @@ export function ReviewSession({ initialQueue }: { initialQueue: DueCard[] }) {
 
       <div className="mt-8">
         {!revealed ? (
-          <button
-            onClick={reveal}
-            className="w-full rounded-md bg-accent px-5 py-3 text-body font-medium text-on-accent transition-colors duration-150 hover:bg-accent-hover focus:outline-none focus-visible:ring-4 focus-visible:ring-focus"
-          >
+          <Button onClick={reveal} className="w-full">
             Reveal answer
-          </button>
+          </Button>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {RATINGS.map(({ rating, label, dot }) => (
-              <button
+              <Button
                 key={rating}
+                variant="secondary"
                 disabled={pending}
                 onClick={() => rate(rating)}
-                className="flex items-center justify-center gap-2 rounded-md border border-border-strong bg-surface px-4 py-2.5 text-body font-medium text-primary transition-colors duration-150 hover:bg-hover focus:outline-none focus-visible:ring-4 focus-visible:ring-focus disabled:opacity-50"
+                className="gap-2"
               >
                 <span className={`h-2 w-2 rounded-full ${dot}`} />
                 {label}
-              </button>
+              </Button>
             ))}
           </div>
         )}
