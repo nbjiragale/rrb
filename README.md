@@ -2,7 +2,7 @@
 
 A single-user, AI-assisted study platform for RRB NTPC prep. See [`CLAUDE.md`](./CLAUDE.md) for the full architecture, hard rules, schema, and conventions, and the four spec docs it references.
 
-## Status: v5 (memory, calibration, current-affairs engine)
+## Status: v6 (knowledge graph + insights dashboard)
 
 **v1 — the daily review loop:**
 - **Concept ontology** — author concepts under subject → topic → subtopic (A2).
@@ -42,7 +42,14 @@ Later phases (calibration, semantic memory, dashboard) plug in without reworking
 - **EV trainer** — per-confidence attempt/skip guidance with the explicit EV math under negative marking, plus a "confident but wrong" list that feeds adversarial drills (G3, G4).
 - **CA digest & ranking** — each ingested item carries an exam-probability; a daily digest groups items by category, highest-yield first, with browser **read-aloud** (play/pause/stop, "now reading" highlight) so you can revise hands-free (H3, H4) at `/digest`.
 
-Later phases (knowledge-graph UI, insights dashboard) plug in without reworking this core — see `CLAUDE.md §11`.
+**v6 — knowledge graph + insights dashboard:**
+- **Visual knowledge graph** — concepts as nodes coloured by mastery, edges styled per relation (prerequisite / contrasts-with / related); click a node to practise. Plus edge authoring + delete (A3) at `/graph`.
+- **Learning resources** — attach external "where to learn" pointers (book/video/article/notes, label + URL + priority) per concept; surfaced on the practice view. Routes out, stores nothing (A4).
+- **Tutor contrast-surfacing** — when a `contrasts_with` partner is itself weak, the tutor is told to disambiguate the confused pair explicitly (E4).
+- **Insights dashboard** (`/dashboard`): weakness **heatmap** (J1), **mastery trends** over time (J2), **projected readiness** vs a target band with honest uncertainty (J3), **streak** (J4, gentle), and **syllabus coverage** (J5).
+- **Mastery history** — a nightly append-only `concept_mastery_snapshot`, backfilled retroactively from the attempt log on first run so trends aren't empty.
+
+The platform is now feature-complete across the v1–v6 plan in `CLAUDE.md §11`.
 
 ### Nightly batch
 
@@ -71,7 +78,7 @@ npm test   # pure unit tests (BKT student model), no DB needed
    cp .env.example .env
    # edit DATABASE_URL
    ```
-3. **Run migrations** (0001 = v1 review tables; 0002 = practice/mastery; 0003 = planner/mocks; 0004 = `misconception`, `misconception_hit`, `current_affairs_item`; 0005 = `interaction`, `learner_profile`, `calibration_model`):
+3. **Run migrations** (0001 = v1 review tables; 0002 = practice/mastery; 0003 = planner/mocks; 0004 = `misconception`, `misconception_hit`, `current_affairs_item`; 0005 = `interaction`, `learner_profile`, `calibration_model`; 0006 = `concept_resource`, `concept_mastery_snapshot`):
    ```bash
    npm run db:migrate
    ```

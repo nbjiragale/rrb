@@ -1,13 +1,21 @@
 import { complete, type ChatMessage } from "@/lib/llm/router";
+import { tryEmbed } from "@/lib/llm/embed";
 import { getConcept } from "@/lib/db/queries/concepts";
 import { getMastery } from "@/lib/db/queries/mastery";
 import { getRecentErrors } from "@/lib/db/queries/attempts";
+import { getLatestProfile } from "@/lib/db/queries/learnerProfile";
+import { getContrastConcepts } from "@/lib/db/queries/edges";
+import {
+  searchInteractions,
+  insertInteraction,
+  type SemanticMatch,
+} from "@/lib/db/queries/interactions";
 import { buildTutorSystemPrompt, buildTutorMemoryBlock } from "@/lib/llm/prompts/tutor";
 
 // Read path (architecture §8): assemble the relevant memory slice for one
-// concept, then make a single LLM call. The model appears to remember the
-// learner; it is pure retrieval. (Graph + semantic recall + nightly profile
-// plug in at v5/v6 without changing this shape.)
+// concept, then a single LLM call. The model appears to remember the learner;
+// it is pure retrieval. v5 added the nightly profile (J3) + semantic recall over
+// the learner's own words (J2); v6 adds contrasts_with surfacing (E4).
 export async function askTutor(input: {
   conceptId: number;
   history: ChatMessage[];
@@ -15,23 +23,49 @@ export async function askTutor(input: {
   const concept = await getConcept(input.conceptId);
   if (!concept) throw new Error(`Concept ${input.conceptId} not found`);
 
-  const [mastery, recentErrors] = await Promise.all([
+  const lastUserMessage = [...input.history].reverse().find((m) => m.role === "user")?.content ?? "";
+  const queryEmbedding = lastUserMessage ? await tryEmbed(lastUserMessage) : null;
+
+  const [mastery, recentErrors, profile, contrasts, semanticMatches] = await Promise.all([
     getMastery(input.conceptId),
     getRecentErrors(input.conceptId),
+    getLatestProfile(),
+    getContrastConcepts(input.conceptId),
+    queryEmbedding ? searchInteractions(queryEmbedding, 5) : Promise.resolve<SemanticMatch[]>([]),
   ]);
 
   const memory = buildTutorMemoryBlock({
     conceptName: concept.name,
     conceptDescription: concept.description,
-    profileSummary: null,
+    profileSummary: profile?.summary_text ?? null,
     mastery,
     recentErrors,
+    semanticMatches,
+    contrasts,
   });
 
-  return complete({
+  const answer = await complete({
     system: `${buildTutorSystemPrompt()}\n\n[MEMORY]\n${memory}`,
     messages: input.history,
     task: "tutor",
     maxTokens: 1024,
   });
+
+  // Store the doubt as recallable memory (walkthrough B) — a future semantic
+  // match. Best-effort: never fail the answer over a write.
+  if (lastUserMessage) {
+    try {
+      await insertInteraction({
+        type: "doubt",
+        concept_id: input.conceptId,
+        content: lastUserMessage,
+        ai_feedback: answer,
+        embedding: queryEmbedding,
+      });
+    } catch (err) {
+      console.error("failed to store tutor interaction:", err);
+    }
+  }
+
+  return answer;
 }

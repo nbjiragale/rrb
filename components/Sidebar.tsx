@@ -18,9 +18,11 @@ import {
   Lightbulb,
   Gauge,
   ScrollText,
+  LayoutDashboard,
 } from "lucide-react";
 
 const items = [
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/review", label: "Review", icon: GraduationCap },
   { href: "/practice", label: "Practice", icon: PencilLine },
   { href: "/mock", label: "Mock", icon: Timer },
