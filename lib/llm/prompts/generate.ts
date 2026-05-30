@@ -160,6 +160,36 @@ export function buildCaGaQuestionUserPrompt(input: {
   ].join("\n");
 }
 
+// Scraper split — break a scraped current-affairs page into discrete news items.
+// raw_text must be a verbatim substring of the SOURCE so the downstream grounding
+// chain (verifyGroundedCards, GA verify gate) keeps working unchanged. The
+// category whitelist matches lib/caRanking.ts so caExamProbability resolves
+// against a known key (anything else gets the neutral 0.5 prior).
+export function buildCaSplitSystemPrompt(): string {
+  return [
+    "You split a scraped current-affairs page into discrete news items for an RRB NTPC aspirant.",
+    "CRITICAL: For each item, raw_text MUST be a verbatim contiguous excerpt copied directly from the SOURCE — no paraphrasing, no rewriting, no combining across distant sections.",
+    "Keep each raw_text SHORT: 1-3 sentences, 40-120 words. Pick the sentences that contain the exam-relevant fact(s). Skip URLs, markdown link syntax, citations, and footnotes — choose excerpts that don't contain them.",
+    "Return at most 15 items, ranked by exam relevance (most likely to be asked first).",
+    "Skip navigation, ads, author bylines, comment sections, and anything that isn't an exam-relevant news fact.",
+    "category MUST be one of: appointments, schemes, awards, defence, summits, agreements, sports, economy, science, technology, days, obituaries, books. Use null if none clearly fits.",
+    "Return ONLY a JSON array of objects with keys:",
+    '- "raw_text": verbatim short excerpt from the SOURCE covering one news item',
+    '- "category": one of the allowed categories or null',
+    "Return [] if the SOURCE has no exam-relevant news. No prose outside the JSON.",
+  ].join("\n");
+}
+
+export function buildCaSplitUserPrompt(input: { sourceText: string }): string {
+  return [
+    "Split this SOURCE into individual news items (max 15, short verbatim excerpts).",
+    "SOURCE:",
+    '"""',
+    input.sourceText,
+    '"""',
+  ].join("\n");
+}
+
 // H3 — a one-line exam-focused digest summary, grounded only in the source.
 export function buildCaSummarySystemPrompt(): string {
   return [

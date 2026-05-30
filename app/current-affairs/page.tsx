@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { CaIngestForm } from "@/components/ca/CaIngestForm";
 import { CaItemActions } from "@/components/ca/CaItemActions";
+import { CaScrapeButton } from "@/components/ca/CaScrapeButton";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,10 @@ export default async function CurrentAffairsPage() {
 
       <div className="mb-8">
         <CaIngestForm today={today} />
+      </div>
+
+      <div className="mb-6">
+        <CaScrapeButton />
       </div>
 
       <h2 className="text-h2 mb-4">Ingested sources</h2>
