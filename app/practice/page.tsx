@@ -4,6 +4,7 @@ import { getPracticeQuestions, getWeakSpotQuestions } from "@/lib/db/queries/que
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { PracticeSession } from "@/components/practice/PracticeSession";
+import { ConceptResources } from "@/components/ConceptResources";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,9 @@ export default async function PracticePage({
             ← All topics
           </Link>
           <h1 className="mt-2 text-h2">{picked.name}</h1>
+          <div className="mt-3">
+            <ConceptResources conceptId={conceptId} />
+          </div>
         </div>
         <PracticeSession questions={questions} />
       </div>

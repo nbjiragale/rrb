@@ -2,7 +2,7 @@
 
 A single-user, AI-assisted study platform for RRB NTPC prep. See [`CLAUDE.md`](./CLAUDE.md) for the full architecture, hard rules, schema, and conventions, and the four spec docs it references.
 
-## Status: v4 (diagnosis, grounded generation, current affairs)
+## Status: v6 (knowledge graph + insights dashboard)
 
 **v1 — the daily review loop:**
 - **Concept ontology** — author concepts under subject → topic → subtopic (A2).
@@ -34,6 +34,23 @@ A single-user, AI-assisted study platform for RRB NTPC prep. See [`CLAUDE.md`](.
 
 Later phases (calibration, semantic memory, dashboard) plug in without reworking this core — see `CLAUDE.md §11`.
 
+**v5 — memory, calibration, current-affairs engine:**
+- **Feynman mode** — explain a concept in your own words; the tutor grades it for gaps and stores it as durable, recallable memory (G5, J1) at `/feynman`.
+- **Semantic recall** — free text is embedded into pgvector; the tutor read-path pulls the top-5 cosine matches of your own past words for continuity, and stores each doubt back as memory (J2). Provider-agnostic embeddings (`EMBED_*`), backfilled nightly.
+- **Nightly learner profile** — an LLM paragraph compressing your latest state, injected into every tutor call (J3).
+- **Confidence calibration** — nightly logistic fit of stated confidence → true accuracy; per-concept `calibration_error`; the curve flags over/under-confidence (G2) at `/calibration`.
+- **EV trainer** — per-confidence attempt/skip guidance with the explicit EV math under negative marking, plus a "confident but wrong" list that feeds adversarial drills (G3, G4).
+- **CA digest & ranking** — each ingested item carries an exam-probability; a daily digest groups items by category, highest-yield first, with browser **read-aloud** (play/pause/stop, "now reading" highlight) so you can revise hands-free (H3, H4) at `/digest`.
+
+**v6 — knowledge graph + insights dashboard:**
+- **Visual knowledge graph** — concepts as nodes coloured by mastery, edges styled per relation (prerequisite / contrasts-with / related); click a node to practise. Plus edge authoring + delete (A3) at `/graph`.
+- **Learning resources** — attach external "where to learn" pointers (book/video/article/notes, label + URL + priority) per concept; surfaced on the practice view. Routes out, stores nothing (A4).
+- **Tutor contrast-surfacing** — when a `contrasts_with` partner is itself weak, the tutor is told to disambiguate the confused pair explicitly (E4).
+- **Insights dashboard** (`/dashboard`): weakness **heatmap** (J1), **mastery trends** over time (J2), **projected readiness** vs a target band with honest uncertainty (J3), **streak** (J4, gentle), and **syllabus coverage** (J5).
+- **Mastery history** — a nightly append-only `concept_mastery_snapshot`, backfilled retroactively from the attempt log on first run so trends aren't empty.
+
+The platform is now feature-complete across the v1–v6 plan in `CLAUDE.md §11`.
+
 ### Nightly batch
 
 PYQ-stat recompute + plan generation run via the cron endpoint `GET /api/cron` (protect with `CRON_SECRET`; point Vercel Cron at it). You can also trigger a plan from the Planner page.
@@ -61,11 +78,11 @@ npm test   # pure unit tests (BKT student model), no DB needed
    cp .env.example .env
    # edit DATABASE_URL
    ```
-3. **Run migrations** (0001 = v1 review tables; 0002 = practice/mastery; 0003 = planner/mocks; 0004 = `misconception`, `misconception_hit`, `current_affairs_item`):
+3. **Run migrations** (0001 = v1 review tables; 0002 = practice/mastery; 0003 = planner/mocks; 0004 = `misconception`, `misconception_hit`, `current_affairs_item`; 0005 = `interaction`, `learner_profile`, `calibration_model`; 0006 = `concept_resource`, `concept_mastery_snapshot`):
    ```bash
    npm run db:migrate
    ```
-   For the AI tutor, diagnosis, and question/card generation, set `LLM_BASE_URL` / `LLM_API_KEY` (and optional model names) in `.env`. These features degrade gracefully when the LLM is unconfigured.
+   For the AI tutor, diagnosis, and question/card generation, set `LLM_BASE_URL` / `LLM_API_KEY` (and optional model names) in `.env`. For semantic recall / Feynman embeddings set `EMBED_BASE_URL` / `EMBED_API_KEY` / `EMBED_MODEL` (any OpenAI-compatible 1024-d embeddings host). All these features degrade gracefully when unconfigured — text is stored now and embedded by the nightly batch once a provider is set.
 4. **(Optional) Seed** an exam config + sample concept/cards:
    ```bash
    node --experimental-strip-types scripts/seed.ts

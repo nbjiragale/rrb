@@ -1,7 +1,12 @@
 import type { ConceptMastery } from "@/lib/db/types";
 import type { RecentError } from "@/lib/db/queries/attempts";
+import type { SemanticMatch } from "@/lib/db/queries/interactions";
+import type { ContrastConcept } from "@/lib/db/queries/edges";
 
 // Pure prompt construction — no I/O. The service assembles the inputs.
+
+// E4 — a contrast partner is "weak" (worth disambiguating) below this mastery.
+export const CONTRAST_WEAK_THRESHOLD = 0.5;
 
 export interface TutorContext {
   conceptName: string;
@@ -9,6 +14,8 @@ export interface TutorContext {
   profileSummary: string | null;
   mastery: ConceptMastery | null;
   recentErrors: RecentError[];
+  semanticMatches: SemanticMatch[];
+  contrasts: ContrastConcept[];
 }
 
 const PROFILE_STUB =
@@ -43,6 +50,25 @@ export function buildTutorMemoryBlock(ctx: TutorContext): string {
     for (const e of ctx.recentErrors) {
       const chose = e.selected_text ? `chose "${e.selected_text}"` : "skipped";
       lines.push(`- ${e.stem} — ${chose}; correct was "${e.correct_text}".`);
+    }
+  }
+
+  // J2 (v5) — the learner's own past words, recalled semantically, for continuity.
+  if (ctx.semanticMatches.length > 0) {
+    lines.push("Relevant past notes from the learner:");
+    for (const m of ctx.semanticMatches) {
+      lines.push(`- (${m.type}) ${m.content.slice(0, 240)}`);
+    }
+  }
+
+  // E4 — surface the concept the learner confuses this with WHEN that partner is
+  // itself weak (the likely root of the mix-up). The tutor is told to contrast
+  // the pair explicitly.
+  const weakContrasts = ctx.contrasts.filter((c) => c.p_known < CONTRAST_WEAK_THRESHOLD);
+  if (weakContrasts.length > 0) {
+    lines.push("Easily confused with (and currently weak — contrast these explicitly):");
+    for (const c of weakContrasts) {
+      lines.push(`- ${c.name} (p_known=${c.p_known.toFixed(2)})`);
     }
   }
 

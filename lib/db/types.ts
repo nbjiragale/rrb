@@ -160,6 +160,59 @@ export interface CurrentAffairsItem {
   processed_at: string | null;
 }
 
+export type InteractionType = "feynman" | "doubt" | "note";
+
+export interface Interaction {
+  id: number;
+  type: InteractionType;
+  concept_id: number | null;
+  content: string;
+  ai_feedback: string | null;
+  created_at: string;
+}
+
+export interface LearnerProfileFocus {
+  weak_concepts: string[];
+  recurring_misconceptions: string[];
+  due_reviews: number;
+}
+
+export interface LearnerProfile {
+  id: number;
+  generated_at: string;
+  summary_text: string;
+  focus_areas: LearnerProfileFocus | null;
+  snapshot: Record<string, unknown> | null;
+}
+
+export interface CalibrationModel {
+  id: number;
+  fitted_at: string;
+  coef_intercept: number | null;
+  coef_confidence: number | null;
+  n_samples: number | null;
+  brier_score: number | null;
+  ev_threshold: number | null;
+}
+
+export type ResourceKind = "book" | "video" | "article" | "notes";
+
+export interface ConceptResource {
+  id: number;
+  concept_id: number;
+  kind: ResourceKind | null;
+  label: string;
+  url: string | null;
+  priority: number;
+}
+
+export interface MasterySnapshot {
+  concept_id: number;
+  snapshot_date: string;
+  p_known: number;
+  mastery_level: MasteryLevel;
+}
+
 export interface MockSession {
   id: number;
   type: MockType;

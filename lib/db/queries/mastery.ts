@@ -77,3 +77,63 @@ export async function listWeakConcepts(limit = 20): Promise<WeakConcept[]> {
     [limit]
   );
 }
+
+// Nightly (walkthrough C): per-concept calibration error = |normed avg confidence
+// − accuracy|, computed straight from the append-only attempt log. Returns the
+// number of concepts updated.
+export async function recomputeCalibrationError(): Promise<number> {
+  const rows = await query<{ concept_id: number }>(
+    `WITH stats AS (
+       SELECT concept_id,
+              avg((confidence - 1) / 4.0) AS conf_norm,
+              avg(CASE WHEN is_correct THEN 1.0 ELSE 0.0 END) AS accuracy
+       FROM attempt
+       WHERE confidence IS NOT NULL AND is_correct IS NOT NULL
+       GROUP BY concept_id
+     )
+     UPDATE concept_mastery m
+       SET calibration_error = abs(stats.conf_norm - stats.accuracy)
+     FROM stats
+     WHERE m.concept_id = stats.concept_id
+     RETURNING m.concept_id`
+  );
+  return rows.length;
+}
+
+export interface WeakConceptBrief {
+  concept_id: number;
+  name: string;
+  subject: string;
+  p_known: number;
+}
+
+// Lowest-mastery attempted concepts — the profile's "focus areas" (J3).
+export async function getWeakConcepts(limit = 5): Promise<WeakConceptBrief[]> {
+  return query<WeakConceptBrief>(
+    `SELECT m.concept_id, c.name, c.subject, m.p_known
+     FROM concept_mastery m
+     JOIN concept c ON c.id = m.concept_id
+     WHERE m.attempts > 0
+     ORDER BY m.p_known ASC
+     LIMIT $1`,
+    [limit]
+  );
+}
+
+export async function getMasteryCounts(): Promise<{
+  tracked: number;
+  mastered: number;
+  attempts: number;
+}> {
+  const row = await queryOne<{ tracked: string; mastered: string; attempts: string }>(
+    `SELECT count(*) AS tracked,
+            count(*) FILTER (WHERE mastery_level = 'mastered') AS mastered,
+            COALESCE(sum(attempts), 0) AS attempts
+     FROM concept_mastery`
+  );
+  return {
+    tracked: Number(row?.tracked ?? 0),
+    mastered: Number(row?.mastered ?? 0),
+    attempts: Number(row?.attempts ?? 0),
+  };
+}

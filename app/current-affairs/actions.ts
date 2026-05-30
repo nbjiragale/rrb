@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { isLlmConfigured } from "@/lib/llm/router";
+import { caExamProbability } from "@/lib/caRanking";
 import { insertCaItem, getCaItem } from "@/lib/db/queries/currentAffairs";
 import { generateCaCards } from "@/lib/services/currentAffairs";
 import { generateGaQuestions } from "@/lib/services/generation";
@@ -33,6 +34,7 @@ export async function ingestCaAction(_prev: CaState, formData: FormData): Promis
     source_url: d.source_url || null,
     category: d.category || null,
     raw_text: d.raw_text,
+    exam_probability: caExamProbability(d.category),
   });
   revalidatePath("/current-affairs");
   return { ok: true, message: `Ingested item #${item.id}.` };
