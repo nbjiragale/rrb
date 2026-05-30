@@ -1,21 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { Select } from "@/components/ui/Field";
 import {
   generateCaCardsAction,
   generateCaQuestionsAction,
 } from "@/app/current-affairs/actions";
-import type { Concept } from "@/lib/db/types";
 
-// H2 + C4 — from one CA item, build grounded cards or grounded GA questions,
-// tagged to a chosen GA concept.
-export function CaItemActions({ caId, gaConcepts }: { caId: number; gaConcepts: Concept[] }) {
-  const [conceptId, setConceptId] = useState(gaConcepts[0]?.id ?? 0);
+// H2 + C4 — from one CA item, build grounded cards or grounded GA questions.
+// The LLM tags each generated item with its own best-fit GA concept (one news
+// piece often spans science + defence + achievements), so no concept dropdown
+// here — routing is per item, not per batch.
+export function CaItemActions({
+  caId,
+  hasGaConcepts,
+}: {
+  caId: number;
+  hasGaConcepts: boolean;
+}) {
   const [pending, setPending] = useState<"cards" | "questions" | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
-  if (gaConcepts.length === 0) {
+  if (!hasGaConcepts) {
     return <p className="text-small text-muted">Add a GA concept first to generate from this item.</p>;
   }
 
@@ -23,25 +28,13 @@ export function CaItemActions({ caId, gaConcepts }: { caId: number; gaConcepts: 
     setPending(kind);
     setMsg(null);
     const action = kind === "cards" ? generateCaCardsAction : generateCaQuestionsAction;
-    const res = await action({ caId, conceptId, count: 5 });
+    const res = await action({ caId, count: 5 });
     setMsg({ ok: res.ok, text: res.message });
     setPending(null);
   }
 
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-2">
-      <Select
-        aria-label="Concept"
-        value={conceptId}
-        onChange={(e) => setConceptId(Number(e.target.value))}
-        className="!w-auto !py-1.5 text-small"
-      >
-        {gaConcepts.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-          </option>
-        ))}
-      </Select>
+    <div className="mt-3 flex flex-wrap items-center gap-3">
       <button
         type="button"
         onClick={() => run("cards")}

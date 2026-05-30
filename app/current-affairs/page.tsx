@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 // cards (H2) / GA questions (C4) strictly from its stored raw_text.
 export default async function CurrentAffairsPage() {
   const [items, concepts] = await Promise.all([listCaItems(), listConcepts()]);
-  const gaConcepts = concepts.filter((c) => c.subject === "ga");
+  const hasGaConcepts = concepts.some((c) => c.subject === "ga");
   const today = new Date().toISOString().slice(0, 10);
 
   return (
@@ -35,7 +35,7 @@ export default async function CurrentAffairsPage() {
                 {item.processed_at && <Badge tone="success">processed</Badge>}
               </div>
               <p className="mt-2 text-body text-secondary line-clamp-3">{item.raw_text}</p>
-              <CaItemActions caId={item.id} gaConcepts={gaConcepts} />
+              <CaItemActions caId={item.id} hasGaConcepts={hasGaConcepts} />
             </Card>
           ))}
         </div>

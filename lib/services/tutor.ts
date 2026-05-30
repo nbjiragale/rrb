@@ -48,7 +48,7 @@ export async function askTutor(input: {
     system: `${buildTutorSystemPrompt()}\n\n[MEMORY]\n${memory}`,
     messages: input.history,
     task: "tutor",
-    maxTokens: 1024,
+    maxTokens: 4096,
   });
 
   // Store the doubt as recallable memory (walkthrough B) — a future semantic
