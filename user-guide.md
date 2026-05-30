@@ -109,8 +109,14 @@ pgvector and creating every table:
 npm run db:migrate
 ```
 
+This auto-loads your `.env` (so make sure `DATABASE_URL` is set there in step 3).
 You should see `apply 0001_v1_init.sql … migrations complete`. Re-running is
 safe — already-applied migrations are skipped.
+
+> **`DATABASE_URL is not set`?** You're missing a `.env` file (you may have only
+> edited `.env.example`). Run `cp .env.example .env`, set `DATABASE_URL` in it,
+> and try again. Or pass it inline once:
+> `DATABASE_URL='your-neon-string' npm run db:migrate`.
 
 **If it errors on `CREATE EXTENSION vector`:** your database doesn't have
 pgvector enabled — revisit step 1 (Supabase needs the extension toggled on;
@@ -124,7 +130,7 @@ Adds one `exam_config` (RRB NTPC sections + 1/3 negative marking) and a few
 sample concepts/cards so the review loop and dashboard aren't empty:
 
 ```bash
-node --experimental-strip-types scripts/seed.ts
+npm run db:seed
 ```
 
 ---
