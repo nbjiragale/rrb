@@ -12,11 +12,32 @@ export interface ChatMessage {
   content: string;
 }
 
+// A system prompt may be split into segments so the stable prefix (persona +
+// nightly profile + syllabus) can carry a cache breakpoint while volatile,
+// per-call context stays uncached (§8 / Hard Rule §4 cost discipline).
+export interface SystemSegment {
+  text: string;
+  cache?: boolean; // attach a cache breakpoint (default true)
+}
+
 export interface CompleteOptions {
-  system?: string;
+  system?: string | SystemSegment[];
   messages: ChatMessage[];
   task?: LlmTask;
   maxTokens?: number;
+}
+
+// Prompt caching is on by default; LLM_PROMPT_CACHE=0/false disables it as an
+// escape hatch for providers that reject cache_control on the /anthropic shape.
+function promptCacheEnabled(): boolean {
+  const v = process.env.LLM_PROMPT_CACHE;
+  return v !== "0" && v !== "false";
+}
+
+function toSegments(system?: string | SystemSegment[]): SystemSegment[] {
+  if (!system) return [];
+  const segs = typeof system === "string" ? [{ text: system }] : system;
+  return segs.filter((s) => s.text);
 }
 
 type ApiFormat = "anthropic" | "openai";
@@ -56,6 +77,19 @@ export async function complete(opts: CompleteOptions): Promise<string> {
     : completeAnthropic(root, apiKey, model, opts);
 }
 
+// Render the system prompt as Anthropic content blocks, attaching a cache
+// breakpoint to cacheable segments. Returns undefined when there's no system.
+function anthropicSystem(system?: string | SystemSegment[]) {
+  const segs = toSegments(system);
+  if (segs.length === 0) return undefined;
+  const cache = promptCacheEnabled();
+  return segs.map((s) => ({
+    type: "text" as const,
+    text: s.text,
+    ...(cache && s.cache !== false ? { cache_control: { type: "ephemeral" as const } } : {}),
+  }));
+}
+
 // Anthropic Messages API shape (DeepSeek's /anthropic endpoint, Anthropic).
 async function completeAnthropic(
   root: string,
@@ -73,7 +107,7 @@ async function completeAnthropic(
     body: JSON.stringify({
       model,
       max_tokens: opts.maxTokens ?? 1024,
-      system: opts.system,
+      system: anthropicSystem(opts.system),
       messages: opts.messages,
     }),
   });
@@ -97,8 +131,14 @@ async function completeOpenAI(
   model: string,
   opts: CompleteOptions
 ): Promise<string> {
-  const messages = opts.system
-    ? [{ role: "system" as const, content: opts.system }, ...opts.messages]
+  // OpenAI-compatible providers (OpenAI, DeepSeek, OpenRouter) cache long stable
+  // prefixes automatically, so we flatten the segments into one system message
+  // and don't send cache_control (some providers reject unknown fields).
+  const systemText = toSegments(opts.system)
+    .map((s) => s.text)
+    .join("\n\n");
+  const messages = systemText
+    ? [{ role: "system" as const, content: systemText }, ...opts.messages]
     : opts.messages;
 
   const res = await fetch(`${root}/v1/chat/completions`, {
