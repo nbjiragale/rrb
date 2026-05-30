@@ -85,6 +85,38 @@ export async function getUndiagnosedWrongAttempts(limit = 50): Promise<{ id: num
   );
 }
 
+export interface ConfidentWrong {
+  attempt_id: number;
+  concept_id: number;
+  concept_name: string;
+  stem: string;
+  selected_text: string | null;
+  correct_text: string;
+  confidence: number;
+  attempted_at: string;
+}
+
+// G4 — high-confidence wrong answers: the most dangerous gaps (sure, but wrong).
+export async function getConfidentWrongAttempts(
+  minConfidence = 4,
+  limit = 20
+): Promise<ConfidentWrong[]> {
+  return query<ConfidentWrong>(
+    `SELECT a.id AS attempt_id, a.concept_id, c.name AS concept_name, q.stem,
+            CASE WHEN a.selected_option IS NULL THEN NULL
+                 ELSE q.options ->> a.selected_option END AS selected_text,
+            q.options ->> q.correct_option AS correct_text,
+            a.confidence, a.attempted_at
+     FROM attempt a
+     JOIN question q ON q.id = a.question_id
+     JOIN concept c ON c.id = a.concept_id
+     WHERE a.is_correct = false AND a.confidence >= $1
+     ORDER BY a.confidence DESC, a.attempted_at DESC
+     LIMIT $2`,
+    [minConfidence, limit]
+  );
+}
+
 export interface RecentError {
   attempted_at: string;
   stem: string;

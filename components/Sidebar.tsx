@@ -15,6 +15,9 @@ import {
   Stethoscope,
   Sparkles,
   Newspaper,
+  Lightbulb,
+  Gauge,
+  ScrollText,
 } from "lucide-react";
 
 const items = [
@@ -23,9 +26,12 @@ const items = [
   { href: "/mock", label: "Mock", icon: Timer },
   { href: "/planner", label: "Planner", icon: CalendarCheck },
   { href: "/tutor", label: "Tutor", icon: MessageCircle },
+  { href: "/feynman", label: "Feynman", icon: Lightbulb },
   { href: "/diagnosis", label: "Diagnosis", icon: Stethoscope },
+  { href: "/calibration", label: "Calibration", icon: Gauge },
   { href: "/generate", label: "Generate", icon: Sparkles },
   { href: "/current-affairs", label: "Current affairs", icon: Newspaper },
+  { href: "/digest", label: "Digest", icon: ScrollText },
   { href: "/cards", label: "Cards", icon: Layers },
   { href: "/concepts", label: "Concepts", icon: BookOpen },
   { href: "/graph", label: "Graph", icon: Share2 },

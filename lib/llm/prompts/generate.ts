@@ -112,3 +112,16 @@ export function buildCaCardUserPrompt(input: { sourceText: string; count: number
     '"""',
   ].join("\n");
 }
+
+// H3 — a one-line exam-focused digest summary, grounded only in the source.
+export function buildCaSummarySystemPrompt(): string {
+  return [
+    "You summarise a news item for an RRB NTPC aspirant's daily revision digest.",
+    "Write ONE crisp sentence capturing the exam-relevant fact(s), using ONLY the SOURCE.",
+    "No preamble, no outside facts. Output the sentence only.",
+  ].join("\n");
+}
+
+export function buildCaSummaryUserPrompt(sourceText: string): string {
+  return ["SOURCE:", '"""', sourceText, '"""', "Summarise it in one sentence."].join("\n");
+}

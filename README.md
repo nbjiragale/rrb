@@ -2,7 +2,7 @@
 
 A single-user, AI-assisted study platform for RRB NTPC prep. See [`CLAUDE.md`](./CLAUDE.md) for the full architecture, hard rules, schema, and conventions, and the four spec docs it references.
 
-## Status: v4 (diagnosis, grounded generation, current affairs)
+## Status: v5 (memory, calibration, current-affairs engine)
 
 **v1 — the daily review loop:**
 - **Concept ontology** — author concepts under subject → topic → subtopic (A2).
@@ -34,6 +34,16 @@ A single-user, AI-assisted study platform for RRB NTPC prep. See [`CLAUDE.md`](.
 
 Later phases (calibration, semantic memory, dashboard) plug in without reworking this core — see `CLAUDE.md §11`.
 
+**v5 — memory, calibration, current-affairs engine:**
+- **Feynman mode** — explain a concept in your own words; the tutor grades it for gaps and stores it as durable, recallable memory (G5, J1) at `/feynman`.
+- **Semantic recall** — free text is embedded into pgvector; the tutor read-path pulls the top-5 cosine matches of your own past words for continuity, and stores each doubt back as memory (J2). Provider-agnostic embeddings (`EMBED_*`), backfilled nightly.
+- **Nightly learner profile** — an LLM paragraph compressing your latest state, injected into every tutor call (J3).
+- **Confidence calibration** — nightly logistic fit of stated confidence → true accuracy; per-concept `calibration_error`; the curve flags over/under-confidence (G2) at `/calibration`.
+- **EV trainer** — per-confidence attempt/skip guidance with the explicit EV math under negative marking, plus a "confident but wrong" list that feeds adversarial drills (G3, G4).
+- **CA digest & ranking** — each ingested item carries an exam-probability; a daily digest groups items by category, highest-yield first (H3, H4) at `/digest`.
+
+Later phases (knowledge-graph UI, insights dashboard) plug in without reworking this core — see `CLAUDE.md §11`.
+
 ### Nightly batch
 
 PYQ-stat recompute + plan generation run via the cron endpoint `GET /api/cron` (protect with `CRON_SECRET`; point Vercel Cron at it). You can also trigger a plan from the Planner page.
@@ -61,11 +71,11 @@ npm test   # pure unit tests (BKT student model), no DB needed
    cp .env.example .env
    # edit DATABASE_URL
    ```
-3. **Run migrations** (0001 = v1 review tables; 0002 = practice/mastery; 0003 = planner/mocks; 0004 = `misconception`, `misconception_hit`, `current_affairs_item`):
+3. **Run migrations** (0001 = v1 review tables; 0002 = practice/mastery; 0003 = planner/mocks; 0004 = `misconception`, `misconception_hit`, `current_affairs_item`; 0005 = `interaction`, `learner_profile`, `calibration_model`):
    ```bash
    npm run db:migrate
    ```
-   For the AI tutor, diagnosis, and question/card generation, set `LLM_BASE_URL` / `LLM_API_KEY` (and optional model names) in `.env`. These features degrade gracefully when the LLM is unconfigured.
+   For the AI tutor, diagnosis, and question/card generation, set `LLM_BASE_URL` / `LLM_API_KEY` (and optional model names) in `.env`. For semantic recall / Feynman embeddings set `EMBED_BASE_URL` / `EMBED_API_KEY` / `EMBED_MODEL` (any OpenAI-compatible 1024-d embeddings host). All these features degrade gracefully when unconfigured — text is stored now and embedded by the nightly batch once a provider is set.
 4. **(Optional) Seed** an exam config + sample concept/cards:
    ```bash
    node --experimental-strip-types scripts/seed.ts
