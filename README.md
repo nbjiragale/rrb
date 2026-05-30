@@ -40,7 +40,7 @@ Later phases (calibration, semantic memory, dashboard) plug in without reworking
 - **Nightly learner profile** — an LLM paragraph compressing your latest state, injected into every tutor call (J3).
 - **Confidence calibration** — nightly logistic fit of stated confidence → true accuracy; per-concept `calibration_error`; the curve flags over/under-confidence (G2) at `/calibration`.
 - **EV trainer** — per-confidence attempt/skip guidance with the explicit EV math under negative marking, plus a "confident but wrong" list that feeds adversarial drills (G3, G4).
-- **CA digest & ranking** — each ingested item carries an exam-probability; a daily digest groups items by category, highest-yield first (H3, H4) at `/digest`.
+- **CA digest & ranking** — each ingested item carries an exam-probability; a daily digest groups items by category, highest-yield first, with browser **read-aloud** (play/pause/stop, "now reading" highlight) so you can revise hands-free (H3, H4) at `/digest`.
 
 Later phases (knowledge-graph UI, insights dashboard) plug in without reworking this core — see `CLAUDE.md §11`.
 

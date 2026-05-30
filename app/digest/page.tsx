@@ -1,12 +1,11 @@
-import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
 import { getDigest } from "@/lib/db/queries/currentAffairs";
+import { DigestPlayer } from "@/components/ca/DigestPlayer";
 import type { CurrentAffairsItem } from "@/lib/db/types";
 
 export const dynamic = "force-dynamic";
 
 // H3 / H4 — daily current-affairs digest, grouped by category, highest
-// likelihood-of-being-asked first.
+// likelihood-of-being-asked first; readable on screen and via browser audio.
 export default async function DigestPage() {
   const { digestDate, items } = await getDigest();
 
@@ -21,36 +20,13 @@ export default async function DigestPage() {
     );
   }
 
-  const byCategory = groupByCategory(items);
+  const groups = groupByCategory(items);
 
   return (
     <div className="mx-auto max-w-column px-6 py-8 md:px-8">
       <h1 className="text-h1 mb-1">Daily digest</h1>
       <p className="text-secondary text-small mb-6 font-mono">{digestDate}</p>
-
-      <div className="grid gap-6">
-        {byCategory.map(({ category, list }) => (
-          <section key={category}>
-            <h2 className="text-caption uppercase tracking-[0.02em] text-secondary mb-2">{category}</h2>
-            <div className="grid gap-2">
-              {list.map((item) => (
-                <Card key={item.id} className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="text-body-lg max-w-read">
-                      {item.summary ?? truncate(item.raw_text, 200)}
-                    </p>
-                    {item.exam_probability != null && (
-                      <Badge tone={item.exam_probability >= 0.7 ? "accent" : "neutral"}>
-                        {Math.round(item.exam_probability * 100)}%
-                      </Badge>
-                    )}
-                  </div>
-                </Card>
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
+      <DigestPlayer groups={groups} />
     </div>
   );
 }
@@ -64,8 +40,4 @@ function groupByCategory(items: CurrentAffairsItem[]) {
     map.set(key, arr);
   }
   return [...map.entries()].map(([category, list]) => ({ category, list }));
-}
-
-function truncate(s: string, n: number): string {
-  return s.length > n ? `${s.slice(0, n).trimEnd()}…` : s;
 }
