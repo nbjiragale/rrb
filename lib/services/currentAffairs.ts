@@ -8,6 +8,7 @@ import {
   buildCaSummaryUserPrompt,
 } from "@/lib/llm/prompts/generate";
 import { verifyGroundedCards } from "@/lib/llm/verify";
+import { genTokens } from "@/lib/config";
 import {
   getCaItem,
   markCaProcessed,
@@ -78,7 +79,8 @@ export async function generateCaCards(input: {
       },
     ],
     task: "generate",
-    maxTokens: 1200,
+    maxTokens: genTokens(input.count),
+    reasoning: { enabled: false },
   });
 
   const candidates = parseJson(raw, cardsSchema);
@@ -125,7 +127,8 @@ export async function summarizeCaItem(caId: number): Promise<string | null> {
     system: buildCaSummarySystemPrompt(),
     messages: [{ role: "user", content: buildCaSummaryUserPrompt(ca.raw_text) }],
     task: "bulk",
-    maxTokens: 120,
+    maxTokens: 256,
+    reasoning: { enabled: false },
   });
   await setCaSummary(caId, summary);
   return summary;

@@ -17,6 +17,7 @@ import {
   type GeneratedQuestion,
   type VerifyResult,
 } from "@/lib/llm/verify";
+import { genTokens } from "@/lib/config";
 import { getConcept } from "@/lib/db/queries/concepts";
 import {
   createGeneratedQuestion,
@@ -76,7 +77,8 @@ export async function generateMathQuestions(input: {
       },
     ],
     task: "generate",
-    maxTokens: 1500,
+    maxTokens: genTokens(input.count),
+    reasoning: { enabled: false },
   });
 
   const candidates = parseJson(raw, candidatesSchema);
@@ -120,7 +122,8 @@ export async function generateGaQuestions(input: {
       },
     ],
     task: "generate",
-    maxTokens: 1500,
+    maxTokens: genTokens(input.count),
+    reasoning: { enabled: false },
   });
 
   const candidates = parseJson(raw, candidatesSchema);
@@ -178,7 +181,8 @@ export async function generateCaGaQuestions(input: {
       },
     ],
     task: "generate",
-    maxTokens: 1500,
+    maxTokens: genTokens(input.count),
+    reasoning: { enabled: false },
   });
 
   const candidates = parseJson(raw, caGaCandidatesSchema);
@@ -259,7 +263,8 @@ export async function generateAdversarial(attemptId: number): Promise<Generation
       },
     ],
     task: "generate",
-    maxTokens: 1000,
+    maxTokens: genTokens(2),
+    reasoning: { enabled: false },
   });
 
   const candidates = parseJson(raw, candidatesSchema);
