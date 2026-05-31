@@ -59,6 +59,38 @@ export async function getWeakSpotQuestions(limit = 20): Promise<PracticeQuestion
   );
 }
 
+export interface ConceptNeedingQuestions {
+  concept_id: number;
+  subject: string;
+  p_known: number;
+  exam_weight: number;
+  verified_count: number;
+}
+
+// Nightly replenishment target list: weak, high-yield NON-GA concepts that are
+// running low on verified questions (GA must stay grounded, so it's excluded
+// from free generation). Ordered by priority = exam_weight × (1 − p_known).
+export async function getConceptsNeedingQuestions(
+  limit = 3,
+  minVerified = 5
+): Promise<ConceptNeedingQuestions[]> {
+  return query<ConceptNeedingQuestions>(
+    `SELECT c.id AS concept_id, c.subject,
+            COALESCE(m.p_known, 0.1) AS p_known,
+            c.exam_weight,
+            count(q.id) FILTER (WHERE q.verified) AS verified_count
+     FROM concept c
+     LEFT JOIN concept_mastery m ON m.concept_id = c.id
+     LEFT JOIN question q ON q.concept_id = c.id
+     WHERE c.subject <> 'ga'
+     GROUP BY c.id, m.p_known
+     HAVING count(q.id) FILTER (WHERE q.verified) < $2
+     ORDER BY c.exam_weight * (1 - COALESCE(m.p_known, 0.1)) DESC
+     LIMIT $1`,
+    [limit, minVerified]
+  );
+}
+
 // Mock question selection: verified questions for a subject, random order.
 export async function getQuestionsBySubject(
   subject: string,

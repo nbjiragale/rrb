@@ -106,3 +106,12 @@ export async function getUnsummarizedCaItems(limit = 10): Promise<CurrentAffairs
     [limit]
   );
 }
+
+// Nightly: items no cards have been built from yet (processed_at stamped by
+// generateCaCards). Bounded by the caller for cost. Newest first.
+export async function getUnprocessedCaItems(limit = 5): Promise<CurrentAffairsItem[]> {
+  return query<CurrentAffairsItem>(
+    `SELECT * FROM current_affairs_item WHERE processed_at IS NULL ORDER BY ca_date DESC, id DESC LIMIT $1`,
+    [limit]
+  );
+}
