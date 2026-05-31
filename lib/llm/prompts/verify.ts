@@ -69,3 +69,19 @@ export function buildCardGroundUserPrompt(
     '"""',
   ].join("\n");
 }
+
+// Math/reasoning flashcards: confirm each card's BACK is a correct, complete
+// answer to its FRONT (independent re-check — no source needed). One per card.
+export function buildCardFactCheckSystemPrompt(): string {
+  return [
+    "You strictly check study flashcards for factual correctness.",
+    "For each numbered card, decide if the BACK is a correct AND complete answer to the FRONT for India's RRB NTPC exam.",
+    "Judge by exact reasoning from established mathematics / reasoning knowledge. Be conservative: if the back is wrong, imprecise, or doesn't actually answer the front, mark it false.",
+    'Return ONLY JSON: { "correct": [boolean, ...] } with one entry per card, in order.',
+    "No prose outside the JSON.",
+  ].join("\n");
+}
+
+export function buildCardFactCheckUserPrompt(cards: { front: string; back: string }[]): string {
+  return ["Cards:", ...cards.map((c, i) => `${i}. FRONT: ${c.front} | BACK: ${c.back}`)].join("\n");
+}

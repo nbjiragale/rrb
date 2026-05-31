@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Label, Input, Textarea, Select } from "@/components/ui/Field";
+import { FactCardsForm, GroundedCardsForm } from "@/components/cards/GenerateCardsForm";
 import { addCard } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +15,8 @@ const stateTone = (s: string) =>
 
 export default async function CardsPage() {
   const [cards, concepts] = await Promise.all([listCards(), listConcepts()]);
+  const nonGaConcepts = concepts.filter((c) => c.subject !== "ga");
+  const gaConcepts = concepts.filter((c) => c.subject === "ga");
 
   return (
     <div className="mx-auto max-w-shell px-6 py-8 md:px-8">
@@ -69,6 +72,20 @@ export default async function CardsPage() {
             </div>
           </form>
         </Card>
+      )}
+
+      {concepts.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-h3 mb-1">Generate cards with AI</h2>
+          <p className="text-small text-muted mb-4">
+            Math/reasoning cards are fact-checked; GA cards must be grounded in a passage you paste.
+            Generated cards enter the review queue like any other.
+          </p>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <FactCardsForm concepts={nonGaConcepts} />
+            <GroundedCardsForm concepts={gaConcepts} />
+          </div>
+        </div>
       )}
 
       {cards.length === 0 ? (
