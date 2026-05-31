@@ -1,5 +1,11 @@
 import { query, queryOne } from "@/lib/db/client";
-import type { CurrentAffairsItem } from "@/lib/db/types";
+import type { CaCitation, CurrentAffairsItem } from "@/lib/db/types";
+
+// JSONB params go over the wire as a JSON string ($n::jsonb in the SQL); null
+// stays null. Keeps node-postgres from coercing the array into a Postgres array.
+function citationsParam(citations?: CaCitation[] | null): string | null {
+  return citations && citations.length > 0 ? JSON.stringify(citations) : null;
+}
 
 // H1 — store a current-affairs source. raw_text is the grounding source for all
 // downstream GA generation (Hard Rule §2.1); it is required by the column.
@@ -11,10 +17,11 @@ export async function insertCaItem(input: {
   category?: string | null;
   exam_probability?: number | null;
   content_hash?: string | null;
+  citations?: CaCitation[] | null;
 }): Promise<CurrentAffairsItem> {
   const row = await queryOne<CurrentAffairsItem>(
-    `INSERT INTO current_affairs_item (ca_date, source_url, raw_text, category, exam_probability, content_hash)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO current_affairs_item (ca_date, source_url, raw_text, category, exam_probability, content_hash, citations)
+     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
      RETURNING *`,
     [
       input.ca_date,
@@ -23,6 +30,7 @@ export async function insertCaItem(input: {
       input.category ?? null,
       input.exam_probability ?? null,
       input.content_hash ?? null,
+      citationsParam(input.citations),
     ]
   );
   return row!;
@@ -38,13 +46,14 @@ export async function insertCaItemDedup(input: {
   category?: string | null;
   exam_probability?: number | null;
   content_hash: string;
+  citations?: CaCitation[] | null;
 }): Promise<CurrentAffairsItem | null> {
   return queryOne<CurrentAffairsItem>(
     // The unique index on content_hash is partial (WHERE content_hash IS NOT NULL,
     // see migrations/0007); Postgres requires the ON CONFLICT clause to repeat
     // the same predicate so it can match the partial index for inference.
-    `INSERT INTO current_affairs_item (ca_date, source_url, raw_text, category, exam_probability, content_hash)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO current_affairs_item (ca_date, source_url, raw_text, category, exam_probability, content_hash, citations)
+     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
      ON CONFLICT (content_hash) WHERE content_hash IS NOT NULL DO NOTHING
      RETURNING *`,
     [
@@ -54,6 +63,7 @@ export async function insertCaItemDedup(input: {
       input.category ?? null,
       input.exam_probability ?? null,
       input.content_hash,
+      citationsParam(input.citations),
     ]
   );
 }

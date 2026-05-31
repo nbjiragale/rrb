@@ -8,6 +8,7 @@ import { backfillEmbeddings } from "@/lib/services/embeddings";
 import { summarizePendingCa, autoGenerateCaCards } from "@/lib/services/currentAffairs";
 import { autoReplenishQuestions } from "@/lib/services/generation";
 import { ingestFromSources } from "@/lib/services/caScraper";
+import { ingestFromGemini } from "@/lib/services/caGemini";
 import { recordDailySnapshots } from "@/lib/services/snapshots";
 
 export const dynamic = "force-dynamic";
@@ -46,9 +47,13 @@ export async function GET(req: Request) {
   const diagnosis = await safe("diagnose", () => diagnosePending());
   const embeddings = await safe("embeddings", () => backfillEmbeddings());
   const calibration = await safe("calibration", () => refitCalibration());
-  // Scrape configured CA sources before summarising/generating so fresh items
-  // get a digest summary and grounded cards in the same nightly run.
-  const caScrape = await safe("caScrape", () => ingestFromSources());
+  // Ingest fresh CA before summarising/generating so new items get a digest
+  // summary and grounded cards in the same nightly run. CA_INGEST_PROVIDER picks
+  // the strategy: "gemini" fetches via grounded Google Search, otherwise the
+  // Firecrawl scraper (default — no behaviour change unless opted in).
+  const caIngest =
+    process.env.CA_INGEST_PROVIDER === "gemini" ? ingestFromGemini : ingestFromSources;
+  const caScrape = await safe("caScrape", () => caIngest());
   const caSummaries = await safe("caSummaries", () => summarizePendingCa());
   const caCards = await safe("caCards", () => autoGenerateCaCards());
   const replenish = await safe("replenishQuestions", () => autoReplenishQuestions());

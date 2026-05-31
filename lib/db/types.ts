@@ -161,6 +161,14 @@ export interface CurrentAffairsItem {
   exam_probability: number | null;
   processed_at: string | null;
   content_hash: string | null;
+  citations: CaCitation[] | null;
+}
+
+// Web sources Google Search grounded a Gemini-synthesised CA item on (migration
+// 0009). Provenance only — the grounding source of truth stays raw_text.
+export interface CaCitation {
+  uri: string;
+  title?: string;
 }
 
 export type InteractionType = "feynman" | "doubt" | "note";
