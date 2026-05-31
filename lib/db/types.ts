@@ -158,6 +158,7 @@ export interface CurrentAffairsItem {
   category: string | null;
   exam_probability: number | null;
   processed_at: string | null;
+  content_hash: string | null;
 }
 
 export type InteractionType = "feynman" | "doubt" | "note";

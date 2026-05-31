@@ -10,10 +10,11 @@ export async function insertCaItem(input: {
   raw_text: string;
   category?: string | null;
   exam_probability?: number | null;
+  content_hash?: string | null;
 }): Promise<CurrentAffairsItem> {
   const row = await queryOne<CurrentAffairsItem>(
-    `INSERT INTO current_affairs_item (ca_date, source_url, raw_text, category, exam_probability)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO current_affairs_item (ca_date, source_url, raw_text, category, exam_probability, content_hash)
+     VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING *`,
     [
       input.ca_date,
@@ -21,9 +22,40 @@ export async function insertCaItem(input: {
       input.raw_text,
       input.category ?? null,
       input.exam_probability ?? null,
+      input.content_hash ?? null,
     ]
   );
   return row!;
+}
+
+// Scraper variant — same insert but swallows duplicate-hash collisions. Returns
+// null when the hash already exists (caller counts it as a skipped duplicate),
+// so re-running the same source on the same day is a no-op.
+export async function insertCaItemDedup(input: {
+  ca_date: string;
+  source_url?: string | null;
+  raw_text: string;
+  category?: string | null;
+  exam_probability?: number | null;
+  content_hash: string;
+}): Promise<CurrentAffairsItem | null> {
+  return queryOne<CurrentAffairsItem>(
+    // The unique index on content_hash is partial (WHERE content_hash IS NOT NULL,
+    // see migrations/0007); Postgres requires the ON CONFLICT clause to repeat
+    // the same predicate so it can match the partial index for inference.
+    `INSERT INTO current_affairs_item (ca_date, source_url, raw_text, category, exam_probability, content_hash)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (content_hash) WHERE content_hash IS NOT NULL DO NOTHING
+     RETURNING *`,
+    [
+      input.ca_date,
+      input.source_url ?? null,
+      input.raw_text,
+      input.category ?? null,
+      input.exam_probability ?? null,
+      input.content_hash,
+    ]
+  );
 }
 
 export async function getCaItem(id: number): Promise<CurrentAffairsItem | null> {

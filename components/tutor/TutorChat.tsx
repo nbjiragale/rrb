@@ -3,21 +3,28 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Select, Textarea } from "@/components/ui/Field";
+import { Markdown } from "@/components/ui/Markdown";
 import { sendTutorMessage } from "@/app/tutor/actions";
+import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
 import type { Concept } from "@/lib/db/types";
 import type { ChatMessage } from "@/lib/llm/router";
 
 // Mirrors Claude.ai's chat: assistant text plain on the canvas, user in a soft bubble.
 export function TutorChat({ concepts }: { concepts: Concept[] }) {
-  const [conceptId, setConceptId] = useState(concepts[0]?.id ?? 0);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const firstId = concepts[0]?.id ?? 0;
+  const [conceptId, setConceptId] = useLocalStorage<number>("tutor:conceptId", firstId);
+  const safeConceptId = concepts.some((c) => c.id === conceptId) ? conceptId : firstId;
+  const [messages, setMessages, resetMessages] = useLocalStorage<ChatMessage[]>(
+    `tutor:chat:${safeConceptId}`,
+    []
+  );
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function send() {
     const content = draft.trim();
-    if (!content || pending || !conceptId) return;
+    if (!content || pending || !safeConceptId) return;
 
     const history: ChatMessage[] = [...messages, { role: "user", content }];
     setMessages(history);
@@ -25,7 +32,7 @@ export function TutorChat({ concepts }: { concepts: Concept[] }) {
     setError(null);
     setPending(true);
     try {
-      const { reply } = await sendTutorMessage({ conceptId, history });
+      const { reply } = await sendTutorMessage({ conceptId: safeConceptId, history });
       setMessages([...history, { role: "assistant", content: reply }]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
@@ -36,10 +43,10 @@ export function TutorChat({ concepts }: { concepts: Concept[] }) {
 
   return (
     <div className="mx-auto flex h-full max-w-[760px] flex-col px-6">
-      <div className="py-4">
+      <div className="flex items-center gap-3 py-4">
         <Select
           aria-label="Concept"
-          value={conceptId}
+          value={safeConceptId}
           onChange={(e) => setConceptId(Number(e.target.value))}
           className="max-w-md"
         >
@@ -49,6 +56,11 @@ export function TutorChat({ concepts }: { concepts: Concept[] }) {
             </option>
           ))}
         </Select>
+        {messages.length > 0 && (
+          <Button variant="ghost" onClick={resetMessages} disabled={pending}>
+            Clear
+          </Button>
+        )}
       </div>
 
       <div className="flex-1 space-y-6 overflow-y-auto py-4">
@@ -59,9 +71,9 @@ export function TutorChat({ concepts }: { concepts: Concept[] }) {
         )}
         {messages.map((m, i) =>
           m.role === "assistant" ? (
-            <p key={i} className="max-w-read whitespace-pre-wrap text-body-lg text-primary">
-              {m.content}
-            </p>
+            <div key={i} className="max-w-read">
+              <Markdown>{m.content}</Markdown>
+            </div>
           ) : (
             <div key={i} className="flex justify-end">
               <div className="max-w-[85%] whitespace-pre-wrap rounded-xl bg-subtle px-4 py-3 text-body-lg">

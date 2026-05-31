@@ -6,6 +6,8 @@ import {
   buildMathUserPrompt,
   buildGaSystemPrompt,
   buildGaUserPrompt,
+  buildCaGaQuestionSystemPrompt,
+  buildCaGaQuestionUserPrompt,
   buildAdversarialSystemPrompt,
   buildAdversarialUserPrompt,
 } from "@/lib/llm/prompts/generate";
@@ -21,6 +23,7 @@ import { getAttemptForDiagnosis } from "@/lib/db/queries/attempts";
 import { getMisconceptionForAttempt } from "@/lib/db/queries/misconceptions";
 import { getCaItem } from "@/lib/db/queries/currentAffairs";
 import { diagnoseAttempt } from "@/lib/services/diagnosis";
+import type { Concept } from "@/lib/db/types";
 
 const candidatesSchema = z.array(
   z.object({
@@ -123,6 +126,97 @@ export async function generateGaQuestions(input: {
     source: "ai_generated",
     gen_source: input.genSource,
   });
+}
+
+// C4 (CA-driven) — GA questions from a current-affairs item, each tagged with
+// its own GA concept. Distinct from generateGaQuestions (passage flow) because
+// one news item often tests multiple GA topics; the LLM picks the best-fit
+// concept per question from the supplied list. Questions whose concept tag
+// doesn't map are skipped (no inventing concepts to avoid miscategorisation).
+const caGaCandidatesSchema = z.array(
+  z.object({
+    stem: z.string().min(1),
+    options: z.array(z.string()).length(4),
+    correct_option: z.number().int().min(0).max(3),
+    explanation: z.string().optional().nullable(),
+    concept: z.string().min(1).optional().nullable(),
+  })
+);
+
+export interface CaGaQuestionReport extends GenerationReport {
+  unmapped: number;
+}
+
+export async function generateCaGaQuestions(input: {
+  caId: number;
+  gaConcepts: Concept[];
+  count: number;
+}): Promise<CaGaQuestionReport> {
+  if (input.gaConcepts.length === 0) {
+    throw new Error("No GA concepts available — add at least one GA concept first.");
+  }
+  const ca = await getCaItem(input.caId);
+  if (!ca) throw new Error(`Current-affairs item ${input.caId} not found`);
+  if (!ca.raw_text?.trim()) {
+    throw new Error("GA generation requires source text — ungrounded GA is not allowed.");
+  }
+
+  const raw = await complete({
+    system: buildCaGaQuestionSystemPrompt(),
+    messages: [
+      {
+        role: "user",
+        content: buildCaGaQuestionUserPrompt({
+          sourceText: ca.raw_text,
+          count: input.count,
+          gaConcepts: input.gaConcepts.map((c) => c.name),
+        }),
+      },
+    ],
+    task: "generate",
+    maxTokens: 1500,
+  });
+
+  const candidates = parseJson(raw, caGaCandidatesSchema);
+  const report: CaGaQuestionReport = {
+    generated: candidates.length,
+    verified: 0,
+    rejected: [],
+    questionIds: [],
+    unmapped: 0,
+  };
+
+  const byName = new Map(input.gaConcepts.map((c) => [c.name.trim().toLowerCase(), c.id]));
+
+  for (const c of candidates) {
+    const conceptId = c.concept ? byName.get(c.concept.trim().toLowerCase()) ?? null : null;
+    if (conceptId === null) {
+      report.unmapped++;
+      continue;
+    }
+    const result = await verifyGaQuestion(c, ca.raw_text);
+    if (!result.ok) {
+      report.rejected.push({ stem: c.stem.slice(0, 80), reason: result.reason });
+      continue;
+    }
+    const q = await createGeneratedQuestion({
+      concept_id: conceptId,
+      stem: c.stem,
+      options: c.options,
+      correct_option: c.correct_option,
+      explanation: c.explanation ?? null,
+      source: "ai_generated",
+      gen_source: `ca:${ca.id}`,
+      is_adversarial: false,
+      parent_question_id: null,
+      difficulty: null,
+      verified: true, // set ONLY here, after the gate passed
+    });
+    report.verified++;
+    report.questionIds.push(q.id);
+  }
+
+  return report;
 }
 
 // C5 — adversarial variant of a missed question. Built from the wrong attempt +
