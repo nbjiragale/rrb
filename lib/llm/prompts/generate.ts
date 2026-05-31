@@ -236,6 +236,30 @@ export function buildCaSplitUserPrompt(input: { sourceText: string }): string {
 }
 
 // H3 — a one-line exam-focused digest summary, grounded only in the source.
+// Current-affairs FETCH via grounded search (Gemini + Google Search). Unlike the
+// SPLIT path (which copies from a page we scraped), this asks the model to gather
+// recent exam-relevant news directly through live web search. Each raw_text is
+// the fact the model grounds in its search results, and becomes the immutable
+// grounding source for downstream GA generation (Hard Rule §2.1). The caller
+// enforces that the response actually carried grounding metadata; a model
+// answering from memory (no citations) is rejected, never stored.
+export function buildCaFetchSystemPrompt(): string {
+  return [
+    "You gather recent current-affairs items relevant to India's RRB NTPC exam, using web search.",
+    "Use the most recent reliable reporting; every fact must come from your search results, never from memory.",
+    "Each item must be a self-contained, factually precise blurb (1–3 sentences) suitable for exam GA prep.",
+    "Prefer high-yield categories: appointments, awards, sports, schemes, defence, economy, international, science, summits, days.",
+    "Return ONLY a JSON array; each element { raw_text, category } where category is a short lowercase tag or null.",
+  ].join("\n");
+}
+
+export function buildCaFetchUserPrompt(input: { date: string; count: number }): string {
+  return [
+    `Find up to ${input.count} of the most exam-relevant Indian current-affairs items from around ${input.date} (the last few days).`,
+    "Return them as a JSON array of { raw_text, category }. If you find none, return [].",
+  ].join("\n");
+}
+
 export function buildCaSummarySystemPrompt(): string {
   return [
     "You summarise a news item for an RRB NTPC aspirant's daily revision digest.",
