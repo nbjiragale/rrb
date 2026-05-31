@@ -6,6 +6,7 @@ import { refitCalibration } from "@/lib/services/calibration";
 import { regenerateProfile } from "@/lib/services/profile";
 import { backfillEmbeddings } from "@/lib/services/embeddings";
 import { summarizePendingCa } from "@/lib/services/currentAffairs";
+import { ingestFromSources } from "@/lib/services/caScraper";
 import { recordDailySnapshots } from "@/lib/services/snapshots";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,9 @@ export async function GET(req: Request) {
   const diagnosis = await diagnosePending();
   const embeddings = await backfillEmbeddings();
   const calibration = await refitCalibration();
+  // Scrape configured CA sources before summarising so fresh items get a digest
+  // summary in the same nightly run.
+  const caScrape = await ingestFromSources();
   const caSummaries = await summarizePendingCa();
   const snapshots = await recordDailySnapshots();
   const profile = await regenerateProfile();
@@ -40,6 +44,11 @@ export async function GET(req: Request) {
     embeddingsBackfilled: embeddings.embedded,
     calibrationFitted: calibration.fitted,
     calibrationConceptsUpdated: calibration.conceptsUpdated,
+    caScraped: caScrape.scraped,
+    caIngested: caScrape.ingested,
+    caSkippedDuplicates: caScrape.skippedDuplicates,
+    caDroppedUngrounded: caScrape.droppedUngrounded,
+    caScrapeErrors: caScrape.errors.length,
     caSummarized: caSummaries.summarized,
     snapshotsBackfilled: snapshots.backfilled,
     snapshotsToday: snapshots.today,

@@ -10,6 +10,7 @@ import {
   flagQuestionAction,
   type AttemptResult,
 } from "@/app/practice/actions";
+import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
 import type { PracticeQuestion } from "@/lib/db/types";
 
 const CONFIDENCE = [1, 2, 3, 4, 5].map((n) => ({ value: n, label: String(n) }));
@@ -34,7 +35,14 @@ function optionClass(opts: {
 }
 
 export function PracticeSession({ questions }: { questions: PracticeQuestion[] }) {
-  const [index, setIndex] = useState(0);
+  // Fingerprint the question set so swapping in a different list resets progress
+  // — persisting index "5" from yesterday onto an unrelated list of 10 today
+  // would put the learner on the wrong question.
+  const fingerprint = questions.map((q) => q.id).join(",");
+  const [index, setIndex] = useLocalStorage<number>(`practice:index:${fingerprint}`, 0);
+  // The mid-question state (selected/confidence/result) is intentionally NOT
+  // persisted: tab-switching mid-attempt should put you back at a clean choice
+  // rather than restoring a half-committed answer in an ambiguous post-reveal state.
   const [selected, setSelected] = useState<number | null>(null);
   const [confidence, setConfidence] = useState<number | null>(null);
   const [result, setResult] = useState<AttemptResult | null>(null);
@@ -49,7 +57,12 @@ export function PracticeSession({ questions }: { questions: PracticeQuestion[] }
     return (
       <div className="mx-auto max-w-column px-6 py-16 text-center">
         <h1 className="text-h2 mb-2">Done</h1>
-        <p className="text-secondary text-body-lg">You worked through every question here.</p>
+        <p className="text-secondary text-body-lg mb-6">
+          You worked through every question here.
+        </p>
+        <Button variant="secondary" onClick={() => setIndex(0)}>
+          Start over
+        </Button>
       </div>
     );
   }

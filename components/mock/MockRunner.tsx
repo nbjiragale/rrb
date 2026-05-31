@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { submitMockAction } from "@/app/mock/actions";
+import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
 import type { StartedMock } from "@/lib/services/mock";
 import type { MockAnalysis } from "@/lib/services/mock";
 
@@ -12,59 +13,99 @@ function fmt(s: number) {
   return `${m}:${String(sec).padStart(2, "0")}`;
 }
 
+interface PacingEntry {
+  q: number;
+  cumulative_ms: number;
+}
+
+interface RunState {
+  current: number;
+  answers: (number | null)[];
+  pacing: PacingEntry[];
+}
+
 // D1/D3 — distraction-free timed runner: mono timer (warning <5m, danger <1m),
-// question palette, first-class skip, auto-submit at time-up.
+// question palette, first-class skip, auto-submit at time-up. State persisted
+// keyed by sessionId so reloads or tab switches resume the exam. Timer derives
+// from `startedAt` (wall-clock) so background-tab throttling and reloads can't
+// pause it.
 export function MockRunner({
   started,
+  startedAt,
   onDone,
+  onQuit,
 }: {
   started: StartedMock;
+  startedAt: number;
   onDone: (a: MockAnalysis) => void;
+  onQuit?: () => void;
 }) {
   const { questions, timeLimitS } = started;
-  const [current, setCurrent] = useState(0);
-  const [answers, setAnswers] = useState<(number | null)[]>(() => questions.map(() => null));
-  const [remaining, setRemaining] = useState(timeLimitS);
+
+  const [run, setRun] = useLocalStorage<RunState>(`mock:run:${started.sessionId}`, {
+    current: 0,
+    answers: questions.map(() => null),
+    pacing: [],
+  });
+  // Defensive: a stored run for a different question count would crash the
+  // palette. Normalise to the current question count if the lengths drifted.
+  const answers =
+    run.answers.length === questions.length
+      ? run.answers
+      : questions.map((_, i) => run.answers[i] ?? null);
+  const current = Math.min(run.current, questions.length - 1);
+
   const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
-  const startRef = useRef(Date.now());
-  const pacing = useRef<Map<number, number>>(new Map());
-  const submittedRef = useRef(false);
+  // Tick once a second so the timer derived from wall clock re-renders.
+  const [, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const remaining = Math.max(0, timeLimitS - Math.floor((Date.now() - startedAt) / 1000));
 
   async function submit() {
-    if (submittedRef.current) return;
-    submittedRef.current = true;
+    if (submitted) return;
+    setSubmitted(true);
     setSubmitting(true);
     const payload = {
       sessionId: started.sessionId,
       answers: questions.map((q, i) => ({ questionId: q.id, selectedOption: answers[i] })),
-      pacing: [...pacing.current.entries()]
-        .map(([q, cumulative_ms]) => ({ q, cumulative_ms }))
-        .sort((a, b) => a.q - b.q),
+      pacing: [...run.pacing].sort((a, b) => a.q - b.q),
     };
     const analysis = await submitMockAction(payload);
     onDone(analysis);
   }
 
-  // Countdown; auto-submit at zero.
+  // Auto-submit at time-up.
   useEffect(() => {
-    if (remaining <= 0) {
+    if (remaining <= 0 && !submitted) {
       void submit();
-      return;
     }
-    const t = setTimeout(() => setRemaining((r) => r - 1), 1000);
-    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [remaining]);
+  }, [remaining, submitted]);
 
   function choose(option: number) {
-    setAnswers((prev) => {
-      const next = [...prev];
-      next[current] = next[current] === option ? null : option; // tap again to clear (skip)
-      return next;
+    setRun((prev) => {
+      const nextAnswers = [...prev.answers];
+      // tap again to clear (skip)
+      nextAnswers[current] = nextAnswers[current] === option ? null : option;
+      const cumulative_ms = Date.now() - startedAt;
+      const otherPacing = prev.pacing.filter((p) => p.q !== current + 1);
+      return {
+        ...prev,
+        answers: nextAnswers,
+        pacing: [...otherPacing, { q: current + 1, cumulative_ms }],
+      };
     });
-    pacing.current.set(current + 1, Date.now() - startRef.current);
+  }
+
+  function goTo(i: number) {
+    setRun((prev) => ({ ...prev, current: i }));
   }
 
   const q = questions[current];
@@ -75,10 +116,25 @@ export function MockRunner({
     <div className="mx-auto max-w-column px-6 py-6">
       {/* Sticky exam bar */}
       <div className="sticky top-0 z-10 mb-4 flex items-center justify-between border-b border-border bg-canvas py-3">
-        <span className={`font-mono text-h2 ${timerTone}`}>{fmt(Math.max(0, remaining))}</span>
-        <span className="text-small text-muted">
-          {answers.filter((a) => a !== null).length}/{questions.length} answered
-        </span>
+        <span className={`font-mono text-h2 ${timerTone}`}>{fmt(remaining)}</span>
+        <div className="flex items-center gap-3">
+          <span className="text-small text-muted">
+            {answers.filter((a) => a !== null).length}/{questions.length} answered
+          </span>
+          {onQuit && (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm("Quit this mock? Your in-progress answers will be discarded.")) {
+                  onQuit();
+                }
+              }}
+              className="text-small text-muted hover:text-danger underline transition-colors duration-150"
+            >
+              Quit
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Palette */}
@@ -89,7 +145,7 @@ export function MockRunner({
           return (
             <button
               key={i}
-              onClick={() => setCurrent(i)}
+              onClick={() => goTo(i)}
               className={`h-7 w-7 rounded-sm text-caption transition-colors duration-150 ${
                 isCurrent
                   ? "border-2 border-accent bg-surface text-primary"
@@ -124,15 +180,11 @@ export function MockRunner({
       </div>
 
       <div className="mt-6 flex items-center justify-between">
-        <Button
-          variant="ghost"
-          disabled={current === 0}
-          onClick={() => setCurrent((c) => Math.max(0, c - 1))}
-        >
+        <Button variant="ghost" disabled={current === 0} onClick={() => goTo(Math.max(0, current - 1))}>
           Previous
         </Button>
         {current < questions.length - 1 ? (
-          <Button variant="secondary" onClick={() => setCurrent((c) => c + 1)}>
+          <Button variant="secondary" onClick={() => goTo(current + 1)}>
             Next
           </Button>
         ) : !confirming ? (

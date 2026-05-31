@@ -6,12 +6,16 @@ import { Button } from "@/components/ui/Button";
 import { startMockAction } from "@/app/mock/actions";
 import { MockRunner } from "@/components/mock/MockRunner";
 import { MockResult } from "@/components/mock/MockResult";
+import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
 import type { StartedMock, MockAnalysis } from "@/lib/services/mock";
 import type { Subject } from "@/lib/db/types";
 
+// `startedAt` (wall-clock ms) is the source of truth for the remaining timer
+// so reloads/tab-switches can't pause or skew it. Persisted alongside the
+// session so an in-progress mock resumes correctly after a refresh.
 type Phase =
   | { name: "choose" }
-  | { name: "running"; started: StartedMock }
+  | { name: "running"; started: StartedMock; startedAt: number }
   | { name: "done"; analysis: MockAnalysis };
 
 const SECTIONS: { subject: Subject; label: string }[] = [
@@ -21,7 +25,7 @@ const SECTIONS: { subject: Subject; label: string }[] = [
 ];
 
 export function MockLauncher() {
-  const [phase, setPhase] = useState<Phase>({ name: "choose" });
+  const [phase, setPhase] = useLocalStorage<Phase>("mock:phase", { name: "choose" });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -30,7 +34,7 @@ export function MockLauncher() {
     setLoading(true);
     try {
       const started = await startMockAction(input);
-      setPhase({ name: "running", started });
+      setPhase({ name: "running", started, startedAt: Date.now() });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not start the mock.");
     } finally {
@@ -38,9 +42,33 @@ export function MockLauncher() {
     }
   }
 
+  function quitToChoose() {
+    if (phase.name === "running") {
+      // Clear per-session runner state too.
+      try {
+        window.localStorage.removeItem(`mock:run:${phase.started.sessionId}`);
+      } catch {
+        // ignore
+      }
+    }
+    setPhase({ name: "choose" });
+  }
+
   if (phase.name === "running") {
     return (
-      <MockRunner started={phase.started} onDone={(analysis) => setPhase({ name: "done", analysis })} />
+      <MockRunner
+        started={phase.started}
+        startedAt={phase.startedAt}
+        onDone={(analysis) => {
+          try {
+            window.localStorage.removeItem(`mock:run:${phase.started.sessionId}`);
+          } catch {
+            // ignore
+          }
+          setPhase({ name: "done", analysis });
+        }}
+        onQuit={quitToChoose}
+      />
     );
   }
 

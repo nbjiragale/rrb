@@ -49,8 +49,8 @@ function apiFormat(): ApiFormat {
 // Route each task to the cheapest model that clears the bar (cost discipline).
 // Strong model reserved for tasks that need it; default is the cheap bulk model.
 function modelForTask(task: LlmTask): string {
-  const cheap = process.env.LLM_MODEL_CHEAP ?? "deepseek-chat";
-  const strong = process.env.LLM_MODEL_STRONG ?? cheap;
+  const cheap = process.env.LLM_MODEL_CHEAP ?? "deepseek/deepseek-v4-flash";
+  const strong = process.env.LLM_MODEL_STRONG ?? "deepseek/deepseek-v4-pro";
   return task === "tutor" ? strong : cheap;
 }
 
@@ -101,8 +101,7 @@ async function completeAnthropic(
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
+      authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       model,
@@ -117,9 +116,22 @@ async function completeAnthropic(
     throw new Error(`LLM request failed (${res.status}): ${detail.slice(0, 500)}`);
   }
 
-  const data = (await res.json()) as { content?: { type: string; text?: string }[] };
-  const text = data.content?.map((b) => b.text ?? "").join("").trim();
-  if (!text) throw new Error("LLM returned an empty response.");
+  const data = (await res.json()) as {
+    choices?: {
+      message?: { content?: string | null; reasoning?: string | null };
+      finish_reason?: string;
+    }[];
+  };
+  const choice = data.choices?.[0];
+  // Some reasoning models return the answer in `reasoning` if `content` is
+  // empty (e.g. budget exhausted before the final answer block). Fall back.
+  const text = (choice?.message?.content ?? choice?.message?.reasoning ?? "").trim();
+  if (!text) {
+    throw new Error(
+      `LLM returned an empty response (finish_reason=${choice?.finish_reason ?? "?"}). ` +
+        `Likely the reasoning budget ate max_tokens — raise it or lower reasoning effort.`
+    );
+  }
   return text;
 }
 
@@ -151,6 +163,10 @@ async function completeOpenAI(
       model,
       max_tokens: opts.maxTokens ?? 1024,
       messages,
+      // Cap reasoning effort — keeps latency and cost down and leaves the
+      // response budget for the answer. OpenRouter passes this through to
+      // providers that support it; ignored by non-reasoning models.
+      reasoning: { effort: "low" },
     }),
   });
 

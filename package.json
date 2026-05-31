@@ -13,11 +13,14 @@
     "db:seed:ontology": "node --env-file-if-exists=.env --experimental-strip-types scripts/seed-ontology.ts"
   },
   "dependencies": {
+    "firecrawl": "^4.25.1",
     "lucide-react": "0.474.0",
     "next": "^16.2.6",
     "pg": "8.13.1",
     "react": "19.0.0",
     "react-dom": "19.0.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "ts-fsrs": "4.6.1",
     "zod": "3.24.1"
   },

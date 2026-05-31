@@ -52,7 +52,7 @@ export async function askTutor(input: {
     ],
     messages: input.history,
     task: "tutor",
-    maxTokens: 1024,
+    maxTokens: 4096,
   });
 
   // Store the doubt as recallable memory (walkthrough B) — a future semantic
