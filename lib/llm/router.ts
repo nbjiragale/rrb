@@ -107,6 +107,114 @@ function webMaxResults(): number {
   return Number(process.env.LLM_WEB_MAX_RESULTS ?? 3);
 }
 
+// --- Grounded provider (Gemini + Google Search) -----------------------------
+// A dedicated path for calls that must be grounded in live web search with
+// citations, kept separate from the global LLM_API_FORMAT so bulk generation and
+// verification stay on the cheap provider (Hard Rule §4). Gemini's native
+// generateContent is the only wire format that returns groundingMetadata, so it
+// lives behind its own adapter. Business logic calls completeGrounded() without
+// knowing the vendor (§13 dependency inversion).
+
+export interface Citation {
+  uri: string;
+  title?: string;
+}
+
+export interface GroundedResult {
+  text: string;
+  citations: Citation[];
+  // True when the response carried grounding metadata (Google Search actually
+  // ran and returned ≥1 web source). False means the model answered from its
+  // own memory — callers that require grounding (CA ingestion, Hard Rule §2.1)
+  // must reject the result.
+  grounded: boolean;
+}
+
+export function isGroundingConfigured(): boolean {
+  return Boolean(process.env.GEMINI_API_KEY);
+}
+
+function groundingBaseUrl(): string {
+  return (process.env.GEMINI_BASE_URL ?? "https://generativelanguage.googleapis.com/v1beta").replace(
+    /\/$/,
+    ""
+  );
+}
+
+function groundingModel(): string {
+  return process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+}
+
+// One grounded turn. Folds system segments into Gemini's system_instruction and
+// maps assistant→model roles. Enables the google_search tool so the response is
+// grounded and carries citations.
+export async function completeGrounded(opts: {
+  system?: string | SystemSegment[];
+  messages: ChatMessage[];
+  maxTokens?: number;
+}): Promise<GroundedResult> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("Grounding provider not configured: set GEMINI_API_KEY.");
+  }
+
+  const systemText = toSegments(opts.system)
+    .map((s) => s.text)
+    .join("\n\n");
+
+  const body = {
+    ...(systemText ? { system_instruction: { parts: [{ text: systemText }] } } : {}),
+    contents: opts.messages.map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }],
+    })),
+    tools: [{ google_search: {} }],
+    generationConfig: { maxOutputTokens: opts.maxTokens ?? 4096 },
+  };
+
+  const res = await fetch(`${groundingBaseUrl()}/models/${groundingModel()}:generateContent`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Grounded LLM request failed (${res.status}): ${detail.slice(0, 500)}`);
+  }
+
+  const data = (await res.json()) as {
+    candidates?: {
+      content?: { parts?: { text?: string }[] };
+      finishReason?: string;
+      groundingMetadata?: { groundingChunks?: { web?: { uri?: string; title?: string } }[] };
+    }[];
+  };
+  const candidate = data.candidates?.[0];
+  const text = (candidate?.content?.parts ?? [])
+    .map((p) => p.text ?? "")
+    .join("")
+    .trim();
+  if (!text) {
+    throw new Error(
+      `Grounded LLM returned an empty response (finishReason=${candidate?.finishReason ?? "?"}) — ` +
+        `raise maxTokens.`
+    );
+  }
+
+  const chunks = candidate?.groundingMetadata?.groundingChunks ?? [];
+  const citations: Citation[] = [];
+  const seen = new Set<string>();
+  for (const c of chunks) {
+    const uri = c.web?.uri;
+    if (!uri || seen.has(uri)) continue;
+    seen.add(uri);
+    citations.push({ uri, ...(c.web?.title ? { title: c.web.title } : {}) });
+  }
+
+  return { text, citations, grounded: citations.length > 0 };
+}
+
 export async function complete(opts: CompleteOptions): Promise<string> {
   const baseUrl = process.env.LLM_BASE_URL;
   const apiKey = process.env.LLM_API_KEY;

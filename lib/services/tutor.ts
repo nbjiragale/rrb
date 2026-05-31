@@ -1,4 +1,11 @@
-import { complete, tutorWebSearchEnabled, type ChatMessage } from "@/lib/llm/router";
+import {
+  complete,
+  completeGrounded,
+  isGroundingConfigured,
+  tutorWebSearchEnabled,
+  type Citation,
+  type ChatMessage,
+} from "@/lib/llm/router";
 import { tryEmbed } from "@/lib/llm/embed";
 import { getConcept } from "@/lib/db/queries/concepts";
 import { getMastery } from "@/lib/db/queries/mastery";
@@ -48,17 +55,28 @@ export async function askTutor(input: {
 
   // Cache the stable prefix (persona + nightly profile); keep the per-concept
   // memory slice uncached as it varies every call (§8 / Hard Rule §4).
-  const answer = await complete({
-    system: [
-      { text: buildTutorCachedPrefix(profile?.summary_text ?? null), cache: true },
-      { text: `[MEMORY]\n${memory}`, cache: false },
-    ],
-    messages: input.history,
-    task: "tutor",
-    maxTokens: 4096,
-    // Live web search for factual accuracy (current affairs, recent facts).
-    web: tutorWebSearchEnabled(),
-  });
+  const system = [
+    { text: buildTutorCachedPrefix(profile?.summary_text ?? null), cache: true },
+    { text: `[MEMORY]\n${memory}`, cache: false },
+  ];
+
+  // Prefer grounded search (Gemini + Google Search) when configured: factual
+  // answers come with citations the learner can verify. Otherwise fall back to
+  // the cheap router, optionally with OpenRouter's web plugin.
+  let answer: string;
+  if (isGroundingConfigured()) {
+    const grounded = await completeGrounded({ system, messages: input.history, maxTokens: 4096 });
+    answer = grounded.text + formatCitations(grounded.citations);
+  } else {
+    answer = await complete({
+      system,
+      messages: input.history,
+      task: "tutor",
+      maxTokens: 4096,
+      // Live web search for factual accuracy (current affairs, recent facts).
+      web: tutorWebSearchEnabled(),
+    });
+  }
 
   // Store the doubt as recallable memory (walkthrough B) — a future semantic
   // match. Best-effort: never fail the answer over a write.
@@ -77,4 +95,12 @@ export async function askTutor(input: {
   }
 
   return answer;
+}
+
+// Render grounding sources as a quiet markdown footer the chat UI already knows
+// how to display (links). Empty when the turn wasn't grounded.
+function formatCitations(citations: Citation[]): string {
+  if (citations.length === 0) return "";
+  const lines = citations.map((c) => `- [${c.title ?? c.uri}](${c.uri})`);
+  return `\n\n---\nSources:\n${lines.join("\n")}`;
 }
