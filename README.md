@@ -83,9 +83,15 @@ npm test   # pure unit tests (BKT student model), no DB needed
    npm run db:migrate
    ```
    For the AI tutor, diagnosis, and question/card generation, set `LLM_BASE_URL` / `LLM_API_KEY` (and optional model names) in `.env`. For semantic recall / Feynman embeddings set `EMBED_BASE_URL` / `EMBED_API_KEY` / `EMBED_MODEL` (any OpenAI-compatible 1024-d embeddings host). All these features degrade gracefully when unconfigured — text is stored now and embedded by the nightly batch once a provider is set.
-4. **(Optional) Seed** an exam config + sample concept/cards:
+4. **Seed the concept ontology** (recommended — the RRB NTPC syllabus tree + its
+   prerequisite/contrast graph, so the planner and tutor have something to work
+   with from day one). Idempotent, so it's safe to re-run:
    ```bash
-   node --experimental-strip-types scripts/seed.ts
+   npm run db:seed:ontology
+   ```
+   Optionally also seed an exam config + a few sample cards/PYQs for the demo loop:
+   ```bash
+   npm run db:seed
    ```
 5. **Run the app**
    ```bash
