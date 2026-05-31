@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { complete } from "@/lib/llm/router";
+import { complete, isLlmConfigured } from "@/lib/llm/router";
 import { parseJson } from "@/lib/llm/json";
 import {
   buildMathSystemPrompt,
@@ -18,7 +18,11 @@ import {
   type VerifyResult,
 } from "@/lib/llm/verify";
 import { getConcept } from "@/lib/db/queries/concepts";
-import { createGeneratedQuestion, getQuestionDetail } from "@/lib/db/queries/questions";
+import {
+  createGeneratedQuestion,
+  getQuestionDetail,
+  getConceptsNeedingQuestions,
+} from "@/lib/db/queries/questions";
 import { getAttemptForDiagnosis } from "@/lib/db/queries/attempts";
 import { getMisconceptionForAttempt } from "@/lib/db/queries/misconceptions";
 import { getCaItem } from "@/lib/db/queries/currentAffairs";
@@ -292,6 +296,49 @@ async function recoverGaSource(questionId: number): Promise<string | null> {
   if (!match) return null;
   const ca = await getCaItem(Number(match[1]));
   return ca?.raw_text ?? null;
+}
+
+// Per-night caps for auto-replenishment (Hard Rule §4). Env-tunable; 0 disables.
+const QGEN_MAX_CONCEPTS = Number(process.env.QGEN_MAX_CONCEPTS ?? 3);
+const QGEN_PER_CONCEPT = Number(process.env.QGEN_PER_CONCEPT ?? 3);
+const QGEN_MIN_VERIFIED = Number(process.env.QGEN_MIN_VERIFIED ?? 5);
+
+// Nightly: keep Practice stocked by topping up verified math/reasoning questions
+// for the weakest, highest-yield concepts that are running low (GA is excluded —
+// it must stay grounded). Each generated item still clears the verify gate, so
+// only correct questions land. Bounded for cost; skips when LLM is unconfigured
+// or caps are zeroed.
+export async function autoReplenishQuestions(opts?: {
+  maxConcepts?: number;
+  perConcept?: number;
+  minVerified?: number;
+}): Promise<{ concepts: number; generated: number; verified: number }> {
+  const maxConcepts = opts?.maxConcepts ?? QGEN_MAX_CONCEPTS;
+  const perConcept = opts?.perConcept ?? QGEN_PER_CONCEPT;
+  const minVerified = opts?.minVerified ?? QGEN_MIN_VERIFIED;
+  if (!isLlmConfigured() || maxConcepts <= 0 || perConcept <= 0) {
+    return { concepts: 0, generated: 0, verified: 0 };
+  }
+
+  const targets = await getConceptsNeedingQuestions(maxConcepts, minVerified);
+  let generated = 0;
+  let verified = 0;
+  let processed = 0;
+  for (const t of targets) {
+    try {
+      const r = await generateMathQuestions({
+        conceptId: t.concept_id,
+        difficulty: "medium",
+        count: perConcept,
+      });
+      generated += r.generated;
+      verified += r.verified;
+      processed++;
+    } catch (err) {
+      console.error(`autoReplenishQuestions(${t.concept_id}) failed:`, err);
+    }
+  }
+  return { concepts: processed, generated, verified };
 }
 
 // Shared: run each candidate through the gate, persist the verified ones.

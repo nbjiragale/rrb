@@ -13,9 +13,16 @@ import {
   markCaProcessed,
   setCaSummary,
   getUnsummarizedCaItems,
+  getUnprocessedCaItems,
 } from "@/lib/db/queries/currentAffairs";
 import { createCard } from "@/lib/db/queries/cards";
+import { listConcepts } from "@/lib/db/queries/concepts";
 import type { Concept } from "@/lib/db/types";
+
+// Per-night caps for auto-generation (Hard Rule §4 cost discipline). Env-tunable;
+// 0 disables the step entirely.
+const CA_AUTOGEN_MAX_ITEMS = Number(process.env.CA_AUTOGEN_MAX_ITEMS ?? 5);
+const CA_AUTOGEN_CARDS_PER_ITEM = Number(process.env.CA_AUTOGEN_CARDS_PER_ITEM ?? 3);
 
 const cardsSchema = z.array(
   z.object({
@@ -122,6 +129,40 @@ export async function summarizeCaItem(caId: number): Promise<string | null> {
   });
   await setCaSummary(caId, summary);
   return summary;
+}
+
+// Nightly: turn freshly-scraped CA items into grounded SRS cards so current
+// affairs flow into Review automatically (closes the scrape→study loop) instead
+// of waiting for a manual click. Bounded per night for cost; each item is still
+// grounded strictly in its raw_text and passes the verify gate (Hard Rule §2.1).
+// Skips silently when the LLM isn't configured, there are no GA concepts, or the
+// caps are zeroed. generateCaCards stamps processed_at, so items aren't redone.
+export async function autoGenerateCaCards(opts?: {
+  maxItems?: number;
+  cardsPerItem?: number;
+}): Promise<{ items: number; cards: number }> {
+  const maxItems = opts?.maxItems ?? CA_AUTOGEN_MAX_ITEMS;
+  const cardsPerItem = opts?.cardsPerItem ?? CA_AUTOGEN_CARDS_PER_ITEM;
+  if (!isLlmConfigured() || maxItems <= 0 || cardsPerItem <= 0) return { items: 0, cards: 0 };
+
+  const gaConcepts = (await listConcepts()).filter((c) => c.subject === "ga");
+  if (gaConcepts.length === 0) return { items: 0, cards: 0 };
+
+  const items = await getUnprocessedCaItems(maxItems);
+  let cards = 0;
+  let processed = 0;
+  for (const item of items) {
+    try {
+      const r = await generateCaCards({ caId: item.id, gaConcepts, count: cardsPerItem });
+      cards += r.grounded;
+      processed++;
+    } catch (err) {
+      // A transient failure leaves processed_at unset, so the item is retried next
+      // night rather than silently lost.
+      console.error(`autoGenerateCaCards(${item.id}) failed:`, err);
+    }
+  }
+  return { items: processed, cards };
 }
 
 // Nightly: summarise recently-ingested items missing a digest summary (bounded).
