@@ -86,6 +86,8 @@ export interface ConceptMastery {
   wrong: number;
   p_known: number;
   avg_confidence: number | null;
+  /** Count of attempts that carried a confidence rating (avg_confidence's denominator). */
+  confidence_count: number;
   calibration_error: number | null;
   mastery_level: MasteryLevel;
   last_seen_at: string | null;

@@ -60,13 +60,17 @@ function foldAttempt(
   now: Date
 ): ConceptMastery {
   const pKnown = bktUpdate(prev?.p_known ?? DEFAULT_P_KNOWN, isCorrect);
+  // Average confidence over confidence-bearing attempts only — mocks and graded
+  // skips carry no confidence, so they must not dilute the denominator.
+  const prevConfCount = prev?.confidence_count ?? 0;
   return {
     concept_id: conceptId,
     attempts: (prev?.attempts ?? 0) + 1,
     correct: (prev?.correct ?? 0) + (isCorrect ? 1 : 0),
     wrong: (prev?.wrong ?? 0) + (isCorrect ? 0 : 1),
     p_known: pKnown,
-    avg_confidence: runningAvg(prev?.avg_confidence ?? null, prev?.attempts ?? 0, confidence),
+    avg_confidence: runningAvg(prev?.avg_confidence ?? null, prevConfCount, confidence),
+    confidence_count: prevConfCount + (confidence != null ? 1 : 0),
     calibration_error: prev?.calibration_error ?? null, // fitted in v5
     mastery_level: masteryLevel(pKnown),
     last_seen_at: now.toISOString(),
