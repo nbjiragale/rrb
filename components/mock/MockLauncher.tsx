@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { startMockAction } from "@/app/mock/actions";
@@ -55,20 +56,24 @@ export function MockLauncher() {
   }
 
   if (phase.name === "running") {
+    // Genuine full-screen: a fixed overlay above the sidebar (z-0) and the
+    // mobile tab bar (z-10) so the exam takes over the whole viewport.
     return (
-      <MockRunner
-        started={phase.started}
-        startedAt={phase.startedAt}
-        onDone={(analysis) => {
-          try {
-            window.localStorage.removeItem(`mock:run:${phase.started.sessionId}`);
-          } catch {
-            // ignore
-          }
-          setPhase({ name: "done", analysis });
-        }}
-        onQuit={quitToChoose}
-      />
+      <div className="fixed inset-0 z-50 overflow-y-auto bg-canvas">
+        <MockRunner
+          started={phase.started}
+          startedAt={phase.startedAt}
+          onDone={(analysis) => {
+            try {
+              window.localStorage.removeItem(`mock:run:${phase.started.sessionId}`);
+            } catch {
+              // ignore
+            }
+            setPhase({ name: "done", analysis });
+          }}
+          onQuit={quitToChoose}
+        />
+      </div>
     );
   }
 
@@ -108,7 +113,16 @@ export function MockLauncher() {
         </div>
       </Card>
 
-      {error && <p className="mt-4 text-small text-danger">{error}</p>}
+      {error && (
+        <div className="mt-4">
+          <p className="text-small text-danger">{error}</p>
+          {error.toLowerCase().includes("configure the exam") && (
+            <Link href="/exam" className="text-small text-accent-strong underline">
+              Set up your exam →
+            </Link>
+          )}
+        </div>
+      )}
     </div>
   );
 }
