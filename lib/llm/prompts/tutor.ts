@@ -1,12 +1,15 @@
 import type { ConceptMastery } from "@/lib/db/types";
 import type { RecentError } from "@/lib/db/queries/attempts";
 import type { SemanticMatch } from "@/lib/db/queries/interactions";
-import type { ContrastConcept } from "@/lib/db/queries/edges";
+import type { ContrastConcept, PrerequisiteConcept } from "@/lib/db/queries/edges";
 
 // Pure prompt construction — no I/O. The service assembles the inputs.
 
 // E4 — a contrast partner is "weak" (worth disambiguating) below this mastery.
 export const CONTRAST_WEAK_THRESHOLD = 0.5;
+// §8 — a prerequisite is "not yet solid" below the planner's owned threshold;
+// surface it as a possible root gap (aligns with lib/planner.ts PREREQ_OWNED).
+export const PREREQ_WEAK_THRESHOLD = 0.7;
 
 export interface TutorContext {
   conceptName: string;
@@ -15,6 +18,7 @@ export interface TutorContext {
   recentErrors: RecentError[];
   semanticMatches: SemanticMatch[];
   contrasts: ContrastConcept[];
+  prerequisites: PrerequisiteConcept[];
 }
 
 const PROFILE_STUB =
@@ -25,6 +29,7 @@ export function buildTutorSystemPrompt(): string {
     "You are a patient, precise tutor for India's RRB NTPC exam.",
     "Teach to the learner's actual gap shown in the [MEMORY] block — be concise and concrete, and prefer worked reasoning over generic advice.",
     "Lean on what the learner already knows and directly address the specific recent mistakes listed.",
+    "If a listed prerequisite is weak and relevant to the question, point the learner to that foundational gap first rather than only answering the surface question.",
     "Ground general-awareness facts in well-established knowledge; if you are unsure of a fact, say so plainly rather than guessing.",
   ].join(" ");
 }
@@ -74,6 +79,16 @@ export function buildTutorMemoryBlock(ctx: TutorContext): string {
     lines.push("Easily confused with (and currently weak — contrast these explicitly):");
     for (const c of weakContrasts) {
       lines.push(`- ${c.name} (p_known=${c.p_known.toFixed(2)})`);
+    }
+  }
+
+  // §8 — surface prerequisites this concept depends on that are not yet solid,
+  // so the tutor can address the root gap instead of only the surface question.
+  const weakPrereqs = ctx.prerequisites.filter((p) => p.p_known < PREREQ_WEAK_THRESHOLD);
+  if (weakPrereqs.length > 0) {
+    lines.push("Weak prerequisites (foundations not yet solid — likely root of the struggle):");
+    for (const p of weakPrereqs) {
+      lines.push(`- ${p.name} (p_known=${p.p_known.toFixed(2)})`);
     }
   }
 

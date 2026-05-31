@@ -4,7 +4,7 @@ import { getConcept } from "@/lib/db/queries/concepts";
 import { getMastery } from "@/lib/db/queries/mastery";
 import { getRecentErrors } from "@/lib/db/queries/attempts";
 import { getLatestProfile } from "@/lib/db/queries/learnerProfile";
-import { getContrastConcepts } from "@/lib/db/queries/edges";
+import { getContrastConcepts, getPrerequisiteConcepts } from "@/lib/db/queries/edges";
 import {
   searchInteractions,
   insertInteraction,
@@ -26,13 +26,15 @@ export async function askTutor(input: {
   const lastUserMessage = [...input.history].reverse().find((m) => m.role === "user")?.content ?? "";
   const queryEmbedding = lastUserMessage ? await tryEmbed(lastUserMessage) : null;
 
-  const [mastery, recentErrors, profile, contrasts, semanticMatches] = await Promise.all([
-    getMastery(input.conceptId),
-    getRecentErrors(input.conceptId),
-    getLatestProfile(),
-    getContrastConcepts(input.conceptId),
-    queryEmbedding ? searchInteractions(queryEmbedding, 5) : Promise.resolve<SemanticMatch[]>([]),
-  ]);
+  const [mastery, recentErrors, profile, contrasts, prerequisites, semanticMatches] =
+    await Promise.all([
+      getMastery(input.conceptId),
+      getRecentErrors(input.conceptId),
+      getLatestProfile(),
+      getContrastConcepts(input.conceptId),
+      getPrerequisiteConcepts(input.conceptId),
+      queryEmbedding ? searchInteractions(queryEmbedding, 5) : Promise.resolve<SemanticMatch[]>([]),
+    ]);
 
   const memory = buildTutorMemoryBlock({
     conceptName: concept.name,
@@ -41,6 +43,7 @@ export async function askTutor(input: {
     recentErrors,
     semanticMatches,
     contrasts,
+    prerequisites,
   });
 
   // Cache the stable prefix (persona + nightly profile); keep the per-concept
