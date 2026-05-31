@@ -8,6 +8,8 @@ import {
   buildGroundUserPrompt,
   buildCardGroundSystemPrompt,
   buildCardGroundUserPrompt,
+  buildCardFactCheckSystemPrompt,
+  buildCardFactCheckUserPrompt,
 } from "@/lib/llm/prompts/verify";
 import {
   checkStructure,
@@ -33,6 +35,7 @@ export { checkStructure } from "@/lib/llm/questionChecks";
 export type MathVerifier = (q: GeneratedQuestion) => Promise<MathSolve>;
 export type GaVerifier = (q: GeneratedQuestion, sourceText: string) => Promise<GaGround>;
 export type CardVerifier = (cards: GeneratedCard[], sourceText: string) => Promise<boolean[]>;
+export type FactCardVerifier = (cards: GeneratedCard[]) => Promise<boolean[]>;
 
 const solveSchema = z.object({
   correct_option: z.number().int(),
@@ -41,6 +44,7 @@ const solveSchema = z.object({
 });
 const groundSchema = z.object({ all_grounded: z.boolean(), correct_option: z.number().int() });
 const cardGroundSchema = z.object({ grounded: z.array(z.boolean()) });
+const cardFactSchema = z.object({ correct: z.array(z.boolean()) });
 
 const llmMathVerifier: MathVerifier = async (q) => {
   const raw = await complete({
@@ -70,6 +74,16 @@ const llmCardVerifier: CardVerifier = async (cards, sourceText) => {
     maxTokens: 512,
   });
   return parseJson(raw, cardGroundSchema).grounded;
+};
+
+const llmFactCardVerifier: FactCardVerifier = async (cards) => {
+  const raw = await complete({
+    system: buildCardFactCheckSystemPrompt(),
+    messages: [{ role: "user", content: buildCardFactCheckUserPrompt(cards) }],
+    task: "generate",
+    maxTokens: 512,
+  });
+  return parseJson(raw, cardFactSchema).correct;
 };
 
 // Math/reasoning gate: short-circuit on structure, else re-solve and judge.
@@ -105,4 +119,17 @@ export async function verifyGroundedCards(
   if (usable.length === 0) return [];
   const grounded = await verifier(usable, sourceText);
   return selectGroundedCards(usable, grounded);
+}
+
+// Math/reasoning flashcard gate: keep only cards whose back the independent
+// checker confirms is a correct answer to the front. No source — math facts are
+// re-derivable, mirroring the math question re-solve (Hard Rule §2).
+export async function verifyFactCards(
+  cards: GeneratedCard[],
+  verifier: FactCardVerifier = llmFactCardVerifier
+): Promise<GeneratedCard[]> {
+  const usable = cards.filter((c) => c.front?.trim() && c.back?.trim());
+  if (usable.length === 0) return [];
+  const correct = await verifier(usable);
+  return selectGroundedCards(usable, correct);
 }

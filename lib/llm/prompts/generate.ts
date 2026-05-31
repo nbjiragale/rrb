@@ -160,6 +160,51 @@ export function buildCaGaQuestionUserPrompt(input: {
   ].join("\n");
 }
 
+// Flashcards for a math/reasoning concept: formulas, definitions, rules, method
+// steps. Generated freely, then independently fact-checked before they're saved.
+export function buildFactCardSystemPrompt(): string {
+  return [
+    "You write spaced-repetition flashcards for an RRB NTPC aspirant studying a math or reasoning concept.",
+    "Each card captures ONE exam-relevant nugget: a formula, definition, rule, or method step. Front = a short cue/question; back = the precise answer.",
+    "Use only well-established, universally-correct facts. Keep both sides short and unambiguous — no trick or opinion content.",
+    'Return ONLY a JSON array of objects with keys "front" and "back". No prose outside the JSON.',
+  ].join("\n");
+}
+
+export function buildFactCardUserPrompt(input: {
+  conceptName: string;
+  topic: string;
+  subject: string;
+  count: number;
+}): string {
+  return `Generate ${input.count} flashcard(s) for the concept "${input.conceptName}" (topic: ${input.topic}, subject: ${input.subject}).`;
+}
+
+// Flashcards for one concept, grounded strictly in a pasted SOURCE passage (GA —
+// Hard Rule §2.1). Every card is re-checked against the SOURCE before saving.
+export function buildPassageCardSystemPrompt(): string {
+  return [
+    "You write spaced-repetition flashcards strictly from a SOURCE passage for an RRB NTPC aspirant.",
+    "CRITICAL: Use ONLY facts stated in the SOURCE. Do not add outside knowledge.",
+    "Each card is one exam-relevant fact about the concept: a short front (cue/question) and short back (answer), both traceable to the SOURCE.",
+    'Return ONLY a JSON array of objects with keys "front" and "back". Return [] if the SOURCE has no exam-relevant fact. No prose outside the JSON.',
+  ].join("\n");
+}
+
+export function buildPassageCardUserPrompt(input: {
+  conceptName: string;
+  sourceText: string;
+  count: number;
+}): string {
+  return [
+    `Generate up to ${input.count} flashcard(s) about "${input.conceptName}" from this SOURCE.`,
+    "SOURCE:",
+    '"""',
+    input.sourceText,
+    '"""',
+  ].join("\n");
+}
+
 // Scraper split — break a scraped current-affairs page into discrete news items.
 // raw_text must be a verbatim substring of the SOURCE so the downstream grounding
 // chain (verifyGroundedCards, GA verify gate) keeps working unchanged. The
