@@ -105,6 +105,10 @@ export async function getUnembeddedInteractions(limit = 100): Promise<{ id: numb
 }
 
 export async function setInteractionEmbedding(id: number, embedding: number[]): Promise<void> {
+  // APPEND-ONLY EXCEPTION (Hard Rule §6): this UPDATE only attaches the *derived*
+  // embedding vector during the nightly backfill — it never touches the immutable
+  // behavioural fields (type/content/ai_feedback/created_at). Permitted because
+  // embedding is derived state, not raw event history.
   await query(`UPDATE interaction SET embedding = $2::vector WHERE id = $1`, [
     id,
     toVectorLiteral(embedding),

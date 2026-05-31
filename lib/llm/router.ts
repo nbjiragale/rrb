@@ -33,6 +33,9 @@ export interface CompleteOptions {
   task?: LlmTask;
   maxTokens?: number;
   reasoning?: ReasoningOption;
+  // §8 escalation: a tutor turn flagged complex uses the strong model. Every
+  // other case stays on the cheap model (Hard Rule §4 cost discipline).
+  complex?: boolean;
 }
 
 // Prompt caching is on by default; LLM_PROMPT_CACHE=0/false disables it as an
@@ -54,12 +57,14 @@ function apiFormat(): ApiFormat {
   return process.env.LLM_API_FORMAT === "openai" ? "openai" : "anthropic";
 }
 
-// Route each task to the cheapest model that clears the bar (cost discipline).
-// Strong model reserved for tasks that need it; default is the cheap bulk model.
-function modelForTask(task: LlmTask): string {
-  const cheap = process.env.LLM_MODEL_CHEAP ?? "deepseek/deepseek-v4-flash";
-  const strong = process.env.LLM_MODEL_STRONG ?? "deepseek/deepseek-v4-pro";
-  return task === "tutor" ? strong : cheap;
+// Route each task to the cheapest model that clears the bar (Hard Rule §4). The
+// strong model is reserved for tutor turns explicitly flagged complex (§8); all
+// other tasks — and unflagged tutor turns — use the cheap model. Defaults match
+// .env.example's DeepSeek-direct option so a clean setup resolves to real slugs.
+function modelForTask(task: LlmTask, complex = false): string {
+  const cheap = process.env.LLM_MODEL_CHEAP ?? "deepseek-chat";
+  const strong = process.env.LLM_MODEL_STRONG ?? "deepseek-reasoner";
+  return task === "tutor" && complex ? strong : cheap;
 }
 
 // Per-call reasoning override wins; otherwise LLM_REASONING_EFFORT sets the
@@ -88,7 +93,7 @@ export async function complete(opts: CompleteOptions): Promise<string> {
     throw new Error("LLM router not configured: set LLM_BASE_URL and LLM_API_KEY.");
   }
 
-  const model = modelForTask(opts.task ?? "bulk");
+  const model = modelForTask(opts.task ?? "bulk", opts.complex);
   const root = baseUrl.replace(/\/$/, "");
 
   return apiFormat() === "openai"
@@ -109,7 +114,10 @@ function anthropicSystem(system?: string | SystemSegment[]) {
   }));
 }
 
-// Anthropic Messages API shape (DeepSeek's /anthropic endpoint, Anthropic).
+// Anthropic Messages API shape (DeepSeek's /anthropic endpoint, Anthropic):
+// x-api-key + anthropic-version auth, and a content-block response (NOT OpenAI
+// `choices`). The system prompt rides as content blocks so the cacheable prefix
+// can carry a cache_control breakpoint (§8 / Hard Rule §4).
 async function completeAnthropic(
   root: string,
   apiKey: string,
@@ -120,7 +128,8 @@ async function completeAnthropic(
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${apiKey}`,
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
       model,
@@ -135,20 +144,22 @@ async function completeAnthropic(
     throw new Error(`LLM request failed (${res.status}): ${detail.slice(0, 500)}`);
   }
 
+  // Messages API returns content blocks; concatenate the text blocks and skip
+  // any non-text (e.g. thinking) blocks. There is no OpenAI-style `choices`.
   const data = (await res.json()) as {
-    choices?: {
-      message?: { content?: string | null; reasoning?: string | null };
-      finish_reason?: string;
-    }[];
+    content?: { type: string; text?: string }[];
+    stop_reason?: string;
   };
-  const choice = data.choices?.[0];
-  // Some reasoning models return the answer in `reasoning` if `content` is
-  // empty (e.g. budget exhausted before the final answer block). Fall back.
-  const text = (choice?.message?.content ?? choice?.message?.reasoning ?? "").trim();
+  const text = (data.content ?? [])
+    .filter((b) => b.type === "text" && b.text)
+    .map((b) => b.text!.trim())
+    .filter(Boolean)
+    .join("\n")
+    .trim();
   if (!text) {
     throw new Error(
-      `LLM returned an empty response (finish_reason=${choice?.finish_reason ?? "?"}). ` +
-        `Likely the reasoning budget ate max_tokens — raise it or lower reasoning effort.`
+      `LLM returned an empty response (stop_reason=${data.stop_reason ?? "?"}). ` +
+        `Likely the output budget was exhausted — raise max_tokens or lower reasoning effort.`
     );
   }
   return text;
