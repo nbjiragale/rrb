@@ -16,18 +16,23 @@ export interface NavGroup {
 
 // Frequent, single-screen destinations — no tabs. Digest is here (not under
 // Content) because it's a daily read/revision activity, not an authoring tool.
-// Exam setup is one-off config but kept top-level so it's easy to find.
 export const NAV_SINGLES: NavTab[] = [
   { href: "/review", label: "Review" },
   { href: "/practice", label: "Practice" },
-  { href: "/mock", label: "Mock" },
   { href: "/planner", label: "Planner" },
   { href: "/digest", label: "Digest" },
-  { href: "/exam", label: "Exam setup" },
 ];
 
 // Clustered screens — one sidebar entry, tabbed inside.
 export const NAV_GROUPS: NavGroup[] = [
+  {
+    key: "mock",
+    label: "Mock tests",
+    tabs: [
+      { href: "/mock", label: "Take a mock" },
+      { href: "/exam", label: "Exam setup" },
+    ],
+  },
   {
     key: "study-aids",
     label: "Study aids",
