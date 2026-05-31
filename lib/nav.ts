@@ -14,12 +14,14 @@ export interface NavGroup {
   tabs: NavTab[];
 }
 
-// Frequent, single-screen destinations — no tabs.
+// Frequent, single-screen destinations — no tabs. Digest is here (not under
+// Content) because it's a daily read/revision activity, not an authoring tool.
 export const NAV_SINGLES: NavTab[] = [
   { href: "/review", label: "Review" },
   { href: "/practice", label: "Practice" },
   { href: "/mock", label: "Mock" },
   { href: "/planner", label: "Planner" },
+  { href: "/digest", label: "Digest" },
 ];
 
 // Clustered screens — one sidebar entry, tabbed inside.
@@ -49,7 +51,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/ingest", label: "Ingest" },
       { href: "/generate", label: "Generate" },
       { href: "/current-affairs", label: "Current affairs" },
-      { href: "/digest", label: "Digest" },
     ],
   },
   {

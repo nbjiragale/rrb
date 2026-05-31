@@ -7,6 +7,7 @@ import {
   PencilLine,
   Timer,
   CalendarCheck,
+  ScrollText,
   MessageCircle,
   LayoutDashboard,
   Upload,
@@ -20,6 +21,7 @@ const SINGLE_ICONS: Record<string, LucideIcon> = {
   "/practice": PencilLine,
   "/mock": Timer,
   "/planner": CalendarCheck,
+  "/digest": ScrollText,
 };
 
 // Icon per group (keyed to lib/nav NAV_GROUPS).
