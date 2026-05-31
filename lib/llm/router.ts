@@ -57,14 +57,20 @@ function apiFormat(): ApiFormat {
   return process.env.LLM_API_FORMAT === "openai" ? "openai" : "anthropic";
 }
 
-// Route each task to the cheapest model that clears the bar (Hard Rule §4). The
-// strong model is reserved for tutor turns explicitly flagged complex (§8); all
-// other tasks — and unflagged tutor turns — use the cheap model. Defaults match
-// .env.example's DeepSeek-direct option so a clean setup resolves to real slugs.
+// Route each task to the cheapest model that clears the bar (Hard Rule §4).
+// Tutor turns can run on a dedicated model (LLM_MODEL_TUTOR) independent of the
+// bulk cheap/strong models — e.g. a Gemini Flash via OpenRouter for nicer
+// explanations while generation stays on DeepSeek. When that's unset, tutor uses
+// the strong model only when a turn is flagged complex (§8), else the cheap one.
+// Every other task uses the cheap model. Defaults match .env.example's
+// DeepSeek-direct option so a clean setup resolves to real slugs.
 function modelForTask(task: LlmTask, complex = false): string {
   const cheap = process.env.LLM_MODEL_CHEAP ?? "deepseek-chat";
   const strong = process.env.LLM_MODEL_STRONG ?? "deepseek-reasoner";
-  return task === "tutor" && complex ? strong : cheap;
+  if (task === "tutor") {
+    return process.env.LLM_MODEL_TUTOR ?? (complex ? strong : cheap);
+  }
+  return cheap;
 }
 
 // Per-call reasoning override wins; otherwise LLM_REASONING_EFFORT sets the
