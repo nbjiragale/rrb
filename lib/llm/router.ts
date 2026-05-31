@@ -1,16 +1,9 @@
 // Provider-agnostic LLM router (Hard Rule §4, build brief §3). Business logic
-<<<<<<< HEAD
 // depends on this abstraction, never on a vendor SDK. Supports two wire formats
 // behind one interface (§13 dependency inversion), chosen by LLM_API_FORMAT:
 //   - "anthropic" (default): /v1/messages, x-api-key   — DeepSeek direct, Anthropic
 //   - "openai": /v1/chat/completions, Bearer auth       — OpenRouter, OpenAI, etc.
 // Swapping providers stays a config change (base URL + key + format + model).
-=======
-// depends on this abstraction, never on a vendor SDK. Targets the OpenAI
-// chat-completions shape, which OpenRouter, DeepSeek, Together, Groq, and most
-// other gateways expose natively — switching providers is a base-URL + key +
-// model change in config only.
->>>>>>> claude/claude-md-docs-eoA6V
 
 export type LlmTask = "tutor" | "classify" | "generate" | "bulk";
 
@@ -19,11 +12,32 @@ export interface ChatMessage {
   content: string;
 }
 
+// A system prompt may be split into segments so the stable prefix (persona +
+// nightly profile + syllabus) can carry a cache breakpoint while volatile,
+// per-call context stays uncached (§8 / Hard Rule §4 cost discipline).
+export interface SystemSegment {
+  text: string;
+  cache?: boolean; // attach a cache breakpoint (default true)
+}
+
 export interface CompleteOptions {
-  system?: string;
+  system?: string | SystemSegment[];
   messages: ChatMessage[];
   task?: LlmTask;
   maxTokens?: number;
+}
+
+// Prompt caching is on by default; LLM_PROMPT_CACHE=0/false disables it as an
+// escape hatch for providers that reject cache_control on the /anthropic shape.
+function promptCacheEnabled(): boolean {
+  const v = process.env.LLM_PROMPT_CACHE;
+  return v !== "0" && v !== "false";
+}
+
+function toSegments(system?: string | SystemSegment[]): SystemSegment[] {
+  if (!system) return [];
+  const segs = typeof system === "string" ? [{ text: system }] : system;
+  return segs.filter((s) => s.text);
 }
 
 type ApiFormat = "anthropic" | "openai";
@@ -55,13 +69,25 @@ export async function complete(opts: CompleteOptions): Promise<string> {
     throw new Error("LLM router not configured: set LLM_BASE_URL and LLM_API_KEY.");
   }
 
-<<<<<<< HEAD
   const model = modelForTask(opts.task ?? "bulk");
   const root = baseUrl.replace(/\/$/, "");
 
   return apiFormat() === "openai"
     ? completeOpenAI(root, apiKey, model, opts)
     : completeAnthropic(root, apiKey, model, opts);
+}
+
+// Render the system prompt as Anthropic content blocks, attaching a cache
+// breakpoint to cacheable segments. Returns undefined when there's no system.
+function anthropicSystem(system?: string | SystemSegment[]) {
+  const segs = toSegments(system);
+  if (segs.length === 0) return undefined;
+  const cache = promptCacheEnabled();
+  return segs.map((s) => ({
+    type: "text" as const,
+    text: s.text,
+    ...(cache && s.cache !== false ? { cache_control: { type: "ephemeral" as const } } : {}),
+  }));
 }
 
 // Anthropic Messages API shape (DeepSeek's /anthropic endpoint, Anthropic).
@@ -72,39 +98,16 @@ async function completeAnthropic(
   opts: CompleteOptions
 ): Promise<string> {
   const res = await fetch(`${root}/v1/messages`, {
-=======
-  const messages: { role: "system" | "user" | "assistant"; content: string }[] = [];
-  if (opts.system) messages.push({ role: "system", content: opts.system });
-  for (const m of opts.messages) messages.push(m);
-
-  const task = opts.task ?? "bulk";
-
-  const res = await fetch(`${baseUrl.replace(/\/$/, "")}/v1/chat/completions`, {
->>>>>>> claude/claude-md-docs-eoA6V
     method: "POST",
     headers: {
       "content-type": "application/json",
       authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-<<<<<<< HEAD
       model,
       max_tokens: opts.maxTokens ?? 1024,
-      system: opts.system,
+      system: anthropicSystem(opts.system),
       messages: opts.messages,
-=======
-      model: modelForTask(task),
-      // Reasoning models (DeepSeek V4) spend tokens on internal chain-of-thought
-      // that counts against max_tokens; budget generously so the visible answer
-      // isn't truncated to empty.
-      max_tokens: opts.maxTokens ?? 4096,
-      messages,
-      // Cap reasoning effort — RRB tutor explanations don't need xhigh; keeps
-      // latency and cost down and leaves the response budget for the answer.
-      // OpenRouter passes this through to providers that support it; ignored
-      // by non-reasoning models.
-      reasoning: { effort: "low" },
->>>>>>> claude/claude-md-docs-eoA6V
     }),
   });
 
@@ -140,8 +143,14 @@ async function completeOpenAI(
   model: string,
   opts: CompleteOptions
 ): Promise<string> {
-  const messages = opts.system
-    ? [{ role: "system" as const, content: opts.system }, ...opts.messages]
+  // OpenAI-compatible providers (OpenAI, DeepSeek, OpenRouter) cache long stable
+  // prefixes automatically, so we flatten the segments into one system message
+  // and don't send cache_control (some providers reject unknown fields).
+  const systemText = toSegments(opts.system)
+    .map((s) => s.text)
+    .join("\n\n");
+  const messages = systemText
+    ? [{ role: "system" as const, content: systemText }, ...opts.messages]
     : opts.messages;
 
   const res = await fetch(`${root}/v1/chat/completions`, {
@@ -154,6 +163,10 @@ async function completeOpenAI(
       model,
       max_tokens: opts.maxTokens ?? 1024,
       messages,
+      // Cap reasoning effort — keeps latency and cost down and leaves the
+      // response budget for the answer. OpenRouter passes this through to
+      // providers that support it; ignored by non-reasoning models.
+      reasoning: { effort: "low" },
     }),
   });
 
