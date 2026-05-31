@@ -44,7 +44,9 @@ export function buildPlan(input: PlanInput): Plan {
 
   if (input.lowEnergy) return reviewsOnly("Low-energy day → reviews only.");
 
-  if (input.daysToExam !== null && input.daysToExam <= EXAM_BACKSTOP_DAYS) {
+  // Only an upcoming exam within the window stops intake. A past/elapsed date
+  // (negative daysToExam) is a stale config, not a reason to suppress learning.
+  if (input.daysToExam !== null && input.daysToExam >= 0 && input.daysToExam <= EXAM_BACKSTOP_DAYS) {
     return reviewsOnly(`Exam in ${input.daysToExam}d → review + mocks only; no new intake.`);
   }
 
@@ -74,9 +76,22 @@ export function buildPlan(input: PlanInput): Plan {
   const capacityNote =
     slots === 0
       ? `Reviews (${input.reviewLoad}) fill today's capacity → no new concepts.`
-      : `${newConcepts.length} new concept(s) alongside ${input.reviewLoad} reviews.`;
+      : newConcepts.length > 0
+        ? `${newConcepts.length} new concept(s) alongside ${input.reviewLoad} reviews.`
+        : emptyReason(input.concepts);
 
   return { newConcepts, reviewLoad: input.reviewLoad, capacityNote };
+}
+
+// Capacity is free but nothing got scheduled — name the actual reason instead of
+// a bare "0 new concepts", so an empty ontology, an all-mastered syllabus, and
+// prerequisite-blocked topics don't all look identical to the learner.
+function emptyReason(concepts: PlannerConcept[]): string {
+  if (concepts.length === 0) return "No concepts in the ontology yet — seed them to get a plan.";
+  const anyWeak = concepts.some((c) => c.pKnown < OWN_NOT_LEARNED);
+  return anyWeak
+    ? "No concepts unlocked yet — weak topics are still blocked by prerequisites you haven't mastered."
+    : "Nothing new to learn — every concept is already at the mastery threshold.";
 }
 
 function pKnownOf(concepts: PlannerConcept[], id: number): number {
