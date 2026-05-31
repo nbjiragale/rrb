@@ -32,6 +32,47 @@ test("exam-date backstop stops new intake", () => {
   assert.equal(plan.newConcepts.length, 0);
 });
 
+test("a past exam date does not suppress new intake", () => {
+  const plan = buildPlan({
+    concepts: [base({ id: 1 })],
+    reviewLoad: 5,
+    dailyCapacity: 30,
+    lowEnergy: false,
+    daysToExam: -7, // stale config: exam already passed
+  });
+  assert.equal(plan.newConcepts.length, 1, "negative daysToExam must not trigger the backstop");
+});
+
+test("empty-state note names the cause", () => {
+  const noOntology = buildPlan({
+    concepts: [],
+    reviewLoad: 0,
+    dailyCapacity: 30,
+    lowEnergy: false,
+    daysToExam: null,
+  });
+  assert.match(noOntology.capacityNote, /ontology/i);
+
+  const blocked = buildPlan({
+    concepts: [base({ id: 1, pKnown: 0.1, prerequisiteIds: [99] })], // prereq absent → 0.1, not owned
+    reviewLoad: 0,
+    dailyCapacity: 30,
+    lowEnergy: false,
+    daysToExam: null,
+  });
+  assert.equal(blocked.newConcepts.length, 0);
+  assert.match(blocked.capacityNote, /prerequisite/i);
+
+  const allMastered = buildPlan({
+    concepts: [base({ id: 1, pKnown: 0.9 })],
+    reviewLoad: 0,
+    dailyCapacity: 30,
+    lowEnergy: false,
+    daysToExam: null,
+  });
+  assert.match(allMastered.capacityNote, /mastery threshold/i);
+});
+
 test("respects prerequisites (I2)", () => {
   const concepts = [
     base({ id: 1, pKnown: 0.5 }), // prereq not yet owned (<0.7)
