@@ -8,6 +8,7 @@ import {
   Timer,
   CalendarCheck,
   ScrollText,
+  SlidersHorizontal,
   MessageCircle,
   LayoutDashboard,
   Upload,
@@ -22,6 +23,7 @@ const SINGLE_ICONS: Record<string, LucideIcon> = {
   "/mock": Timer,
   "/planner": CalendarCheck,
   "/digest": ScrollText,
+  "/exam": SlidersHorizontal,
 };
 
 // Icon per group (keyed to lib/nav NAV_GROUPS).
