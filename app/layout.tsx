@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Sidebar, MobileTabBar } from "@/components/Sidebar";
+import { SectionTabs } from "@/components/SectionTabs";
 
 export const metadata: Metadata = {
   title: "RRB NTPC — Personal Learning Platform",
@@ -21,7 +22,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="bg-canvas text-primary">
         <div className="flex h-dvh">
           <Sidebar />
-          <main className="flex-1 overflow-y-auto pb-20 md:pb-0">{children}</main>
+          <main className="flex flex-1 flex-col overflow-hidden">
+            <SectionTabs />
+            <div className="flex-1 overflow-y-auto pb-20 md:pb-0">{children}</div>
+          </main>
         </div>
         <MobileTabBar />
       </body>
