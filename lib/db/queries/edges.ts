@@ -107,3 +107,24 @@ export async function getContrastConcepts(conceptId: number): Promise<ContrastCo
     [conceptId]
   );
 }
+
+export interface PrerequisiteConcept {
+  concept_id: number;
+  name: string;
+  p_known: number;
+}
+
+// §8 — the foundations this concept is built on (prerequisite edges, stored
+// source=dependent → target=foundation), with their mastery, so the tutor can
+// point at a weak foundation as the likely root of a struggle. Weakest first.
+export async function getPrerequisiteConcepts(conceptId: number): Promise<PrerequisiteConcept[]> {
+  return query<PrerequisiteConcept>(
+    `SELECT t.id AS concept_id, t.name, COALESCE(m.p_known, 0.1) AS p_known
+     FROM concept_edge e
+     JOIN concept t ON t.id = e.target_id
+     LEFT JOIN concept_mastery m ON m.concept_id = t.id
+     WHERE e.source_id = $1 AND e.relation_type = 'prerequisite'
+     ORDER BY p_known ASC`,
+    [conceptId]
+  );
+}
