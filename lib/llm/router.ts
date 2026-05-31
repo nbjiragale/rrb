@@ -20,11 +20,19 @@ export interface SystemSegment {
   cache?: boolean; // attach a cache breakpoint (default true)
 }
 
+// Reasoning models (DeepSeek V3.1 hybrid, etc.) bill thinking tokens against
+// max_tokens, so leaving reasoning on for a deterministic task can starve the
+// answer and return empty content (finish_reason=length). `{ enabled: false }`
+// turns thinking off; an effort level caps it. Honoured on the OpenAI wire
+// format (OpenRouter); the Anthropic format ignores it for now.
+export type ReasoningOption = { enabled: false } | { effort: "low" | "medium" | "high" };
+
 export interface CompleteOptions {
   system?: string | SystemSegment[];
   messages: ChatMessage[];
   task?: LlmTask;
   maxTokens?: number;
+  reasoning?: ReasoningOption;
 }
 
 // Prompt caching is on by default; LLM_PROMPT_CACHE=0/false disables it as an
@@ -52,6 +60,17 @@ function modelForTask(task: LlmTask): string {
   const cheap = process.env.LLM_MODEL_CHEAP ?? "deepseek/deepseek-v4-flash";
   const strong = process.env.LLM_MODEL_STRONG ?? "deepseek/deepseek-v4-pro";
   return task === "tutor" ? strong : cheap;
+}
+
+// Per-call reasoning override wins; otherwise LLM_REASONING_EFFORT sets the
+// default (none/off disables thinking, low/medium/high caps it), falling back
+// to a low cap. Keeps reasoning policy in config, not hardcoded per call.
+function reasoningConfig(override?: ReasoningOption): ReasoningOption {
+  if (override) return override;
+  const e = process.env.LLM_REASONING_EFFORT?.toLowerCase();
+  if (e === "none" || e === "off" || e === "0") return { enabled: false };
+  if (e === "low" || e === "medium" || e === "high") return { effort: e };
+  return { effort: "low" };
 }
 
 // Lets non-core features (diagnosis, generation) degrade gracefully when the
@@ -163,10 +182,10 @@ async function completeOpenAI(
       model,
       max_tokens: opts.maxTokens ?? 1024,
       messages,
-      // Cap reasoning effort — keeps latency and cost down and leaves the
-      // response budget for the answer. OpenRouter passes this through to
-      // providers that support it; ignored by non-reasoning models.
-      reasoning: { effort: "low" },
+      // Reasoning policy (config-driven, per-call override). Off keeps the whole
+      // budget for the answer; a cap keeps thinking from eating max_tokens.
+      // OpenRouter passes this through; ignored by non-reasoning models.
+      reasoning: reasoningConfig(opts.reasoning),
     }),
   });
 
@@ -176,9 +195,17 @@ async function completeOpenAI(
   }
 
   const data = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
+    choices?: { message?: { content?: string }; finish_reason?: string }[];
   };
-  const text = data.choices?.[0]?.message?.content?.trim();
-  if (!text) throw new Error("LLM returned an empty response.");
+  const choice = data.choices?.[0];
+  const text = choice?.message?.content?.trim();
+  if (!text) {
+    const reason = choice?.finish_reason ?? "?";
+    const hint =
+      reason === "length"
+        ? " — output truncated by the token budget; raise maxTokens or disable reasoning (LLM_REASONING_EFFORT=none)"
+        : " — likely the reasoning budget ate max_tokens; raise it or lower reasoning effort";
+    throw new Error(`LLM returned an empty response (finish_reason=${reason})${hint}`);
+  }
   return text;
 }

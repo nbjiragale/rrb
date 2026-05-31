@@ -58,10 +58,12 @@ export async function splitCaPage(markdown: string): Promise<SplitResult> {
     system: buildCaSplitSystemPrompt(),
     messages: [{ role: "user", content: buildCaSplitUserPrompt({ sourceText: markdown }) }],
     task: "bulk",
-    // Budget headroom for reasoning + content. DeepSeek V4 spends ~2-4k tokens
-    // on internal thinking even at effort:low (set in the router); the JSON
-    // output is then truncated if the budget is too tight. Capped well above
-    // typical need; OpenRouter clamps to the model's actual output ceiling.
+    // Verbatim copy-out of source excerpts into JSON — no chain-of-thought needed.
+    // Disabling reasoning stops thinking tokens from eating the budget (which
+    // truncated the JSON and returned empty content, finish_reason=length).
+    reasoning: { enabled: false },
+    // Generous ceiling for the JSON array; OpenRouter clamps to the model's
+    // actual output limit.
     maxTokens: 50000,
   });
   const parsed = parseJson(raw, splitSchema);

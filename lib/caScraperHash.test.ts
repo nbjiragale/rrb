@@ -105,6 +105,34 @@ test("isGrounded accepts an LLM excerpt that stripped markdown from the source",
   assert.ok(isGrounded(excerpt, source));
 });
 
+test("isGrounded accepts an excerpt that elides an inline parenthetical/appositive", () => {
+  // Real AffairsCloud failure mode: the model copies faithfully but drops an
+  // inline parenthetical from the middle of the sentence, so the excerpt is an
+  // ordered subsequence of the source, not a contiguous substring.
+  const source =
+    "In May 2026, West Bengal Gramin Bank (**WBGB**), one of India's largest " +
+    "Regional Rural Banks (RRBs), collaborated with **Canara HSBC Life Insurance " +
+    'Company Limited**("Canara HSBC Life Insurance") to strengthen life insurance ' +
+    "coverage across rural and semi-urban areas of West Bengal.";
+  const excerpt =
+    "In May 2026, West Bengal Gramin Bank (WBGB) collaborated with Canara HSBC " +
+    "Life Insurance Company Limited to strengthen life insurance coverage across " +
+    "rural and semi-urban areas of West Bengal.";
+  assert.ok(isGrounded(excerpt, source));
+});
+
+test("isGrounded rejects words stitched together from distant parts of the page", () => {
+  // Each word exists in the source but they're scattered across unrelated items;
+  // the window bound must stop them being assembled into a fabricated claim.
+  const source =
+    "In May 2026, the Reserve Bank of India cut the repo rate. " +
+    "Separately, the Ministry of Defence signed a deal with France for jets. " +
+    "In sports, India won the hockey final against Australia in Tokyo.";
+  const excerpt =
+    "the Reserve Bank of India signed a deal with Australia in Tokyo for jets";
+  assert.equal(isGrounded(excerpt, source), false);
+});
+
 test("isGrounded still rejects invented facts after markdown stripping", () => {
   // Same source as above but the excerpt now invents a date and a different
   // ministry. The aggressive normalisation must not let this slip through.

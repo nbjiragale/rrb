@@ -113,8 +113,37 @@ function normaliseForGrounding(text: string): string {
 // "raw_text" into current_affairs_item (Hard Rule §2.1). Comparison is on the
 // alphanumeric-only normalised form, so the LLM's cosmetic cleanup (stripped
 // markdown, folded punctuation) doesn't drop a genuinely grounded excerpt.
+//
+// Even with reasoning off and a "verbatim" instruction, the model routinely
+// elides an inline parenthetical or appositive from the middle of a sentence —
+// e.g. source "...Company Limited (\"Canara HSBC Life Insurance\") to strengthen..."
+// becomes "...Company Limited to strengthen...". That's still faithful (every
+// word traces to the source, in order), just not a contiguous substring. So we
+// fall back from substring to an ORDERED-SUBSEQUENCE match bounded to a local
+// window: every excerpt word must appear in the source, in order, with only a
+// few interspersed source words skipped. The window bound is what preserves the
+// "no invented facts" guarantee — it stops a model from stitching words
+// together from distant, unrelated parts of the page.
 export function isGrounded(excerpt: string, source: string): boolean {
-  const needle = normaliseForGrounding(excerpt);
-  if (needle.length < 20) return false;
-  return normaliseForGrounding(source).includes(needle);
+  const needleText = normaliseForGrounding(excerpt);
+  if (needleText.length < 20) return false;
+  const normSource = normaliseForGrounding(source);
+  // Fast path: the fully-verbatim case (most excerpts).
+  if (normSource.includes(needleText)) return true;
+
+  const needle = needleText.split(" ");
+  const hay = normSource.split(" ");
+  // Allow up to ~50% of the excerpt length in skipped source tokens (min 12) —
+  // enough for several inline parentheticals, far too few to bridge two items.
+  const maxExtra = Math.max(12, Math.ceil(needle.length * 0.5));
+  for (let start = 0; start < hay.length; start++) {
+    if (hay[start] !== needle[0]) continue;
+    const limit = start + needle.length + maxExtra;
+    let n = 1;
+    for (let h = start + 1; h < hay.length && h <= limit && n < needle.length; h++) {
+      if (hay[h] === needle[n]) n++;
+    }
+    if (n === needle.length) return true;
+  }
+  return false;
 }
