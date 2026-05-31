@@ -8,6 +8,7 @@ import {
   buildPassageCardUserPrompt,
 } from "@/lib/llm/prompts/generate";
 import { verifyFactCards, verifyGroundedCards, type GeneratedCard } from "@/lib/llm/verify";
+import { genTokens } from "@/lib/config";
 import { getConcept } from "@/lib/db/queries/concepts";
 import { createCard } from "@/lib/db/queries/cards";
 
@@ -52,7 +53,8 @@ export async function generateFactCards(input: {
       },
     ],
     task: "generate",
-    maxTokens: 1200,
+    maxTokens: genTokens(input.count),
+    reasoning: { enabled: false },
   });
 
   const candidates = parseJson(raw, cardsSchema);
@@ -89,7 +91,8 @@ export async function generateGroundedCards(input: {
       },
     ],
     task: "generate",
-    maxTokens: 1200,
+    maxTokens: genTokens(input.count),
+    reasoning: { enabled: false },
   });
 
   const candidates = parseJson(raw, cardsSchema);

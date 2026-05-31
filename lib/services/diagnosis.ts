@@ -53,7 +53,7 @@ export async function diagnoseAttempt(attemptId: number): Promise<DiagnosisResul
     system: buildDiagnoseSystemPrompt(),
     messages: [{ role: "user", content: buildDiagnoseUserPrompt(a) }],
     task: "classify",
-    maxTokens: 400,
+    maxTokens: 800,
   });
   const d = parseJson(raw, diagnoseSchema);
 

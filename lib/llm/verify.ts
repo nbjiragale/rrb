@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { complete } from "@/lib/llm/router";
 import { parseJson } from "@/lib/llm/json";
+import { verifyTokens } from "@/lib/config";
 import {
   buildSolveSystemPrompt,
   buildSolveUserPrompt,
@@ -51,7 +52,7 @@ const llmMathVerifier: MathVerifier = async (q) => {
     system: buildSolveSystemPrompt(),
     messages: [{ role: "user", content: buildSolveUserPrompt(q.stem, q.options) }],
     task: "generate",
-    maxTokens: 512,
+    maxTokens: verifyTokens(),
   });
   return parseJson(raw, solveSchema);
 };
@@ -61,7 +62,7 @@ const llmGaVerifier: GaVerifier = async (q, sourceText) => {
     system: buildGroundSystemPrompt(),
     messages: [{ role: "user", content: buildGroundUserPrompt(q.stem, q.options, sourceText) }],
     task: "generate",
-    maxTokens: 512,
+    maxTokens: verifyTokens(),
   });
   return parseJson(raw, groundSchema);
 };
@@ -71,7 +72,7 @@ const llmCardVerifier: CardVerifier = async (cards, sourceText) => {
     system: buildCardGroundSystemPrompt(),
     messages: [{ role: "user", content: buildCardGroundUserPrompt(cards, sourceText) }],
     task: "generate",
-    maxTokens: 512,
+    maxTokens: verifyTokens(),
   });
   return parseJson(raw, cardGroundSchema).grounded;
 };
@@ -81,7 +82,7 @@ const llmFactCardVerifier: FactCardVerifier = async (cards) => {
     system: buildCardFactCheckSystemPrompt(),
     messages: [{ role: "user", content: buildCardFactCheckUserPrompt(cards) }],
     task: "generate",
-    maxTokens: 512,
+    maxTokens: verifyTokens(),
   });
   return parseJson(raw, cardFactSchema).correct;
 };

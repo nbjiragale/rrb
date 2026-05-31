@@ -53,7 +53,7 @@ export async function regenerateProfile(): Promise<LearnerProfile | null> {
     system: buildProfileSystemPrompt(),
     messages: [{ role: "user", content: buildProfileUserPrompt(inputs) }],
     task: "tutor",
-    maxTokens: 400,
+    maxTokens: 800,
   });
 
   return insertLearnerProfile({
