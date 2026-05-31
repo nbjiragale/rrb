@@ -34,6 +34,26 @@ export function getCaSourceUrls(): string[] {
     .filter((u) => u.length > 0);
 }
 
+// How many days back to walk when the requested date's page isn't published yet
+// (see ingestFromSourcesEvents). AffairsCloud — and most CA sites — publish a
+// day's page late, so "today" is usually a listing/fallback page with no news;
+// we step back to the most recent day that actually has content. Configurable
+// via CA_MAX_LOOKBACK_DAYS; clamped to a sane range so a typo can't trigger a
+// month of Firecrawl/LLM calls.
+export function getMaxLookbackDays(): number {
+  const raw = Number(process.env.CA_MAX_LOOKBACK_DAYS);
+  if (!Number.isFinite(raw)) return 7;
+  return Math.max(0, Math.min(31, Math.trunc(raw)));
+}
+
+// Shift a YYYY-MM-DD date string by `delta` days, in UTC to match the rest of
+// the pipeline's date handling. Returns a Date (callers format/expand as needed).
+export function addUtcDays(date: string, delta: number): Date {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + delta);
+  return d;
+}
+
 const MONTH_NAMES = [
   "january", "february", "march", "april", "may", "june",
   "july", "august", "september", "october", "november", "december",

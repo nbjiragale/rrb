@@ -9,9 +9,11 @@ import { isFirecrawlConfigured, scrapeUrl } from "@/lib/services/firecrawl";
 import { caExamProbability } from "@/lib/caRanking";
 import { insertCaItemDedup } from "@/lib/db/queries/currentAffairs";
 import {
+  addUtcDays,
   contentHash,
   expandSourceUrl,
   getCaSourceUrls,
+  getMaxLookbackDays,
   isGrounded,
   normaliseCategory,
 } from "@/lib/caScraperHash";
@@ -42,6 +44,10 @@ export type CaScrapeEvent =
   | { type: "start"; sources: number; date: string }
   | { type: "source-start"; url: string; index: number; total: number }
   | { type: "scrape-done"; url: string; chars: number }
+  // The requested date's page had no extractable news (typically a not-yet-
+  // published date serving a listing/fallback page) — walking back to an
+  // earlier day.
+  | { type: "date-skip"; url: string; date: string }
   | { type: "split-done"; url: string; emitted: number; grounded: number }
   | { type: "item"; url: string; ingested: number; skipped: number; remaining: number }
   | { type: "source-done"; url: string; ingested: number; skippedDuplicates: number; droppedUngrounded: number }
@@ -114,66 +120,96 @@ export async function* ingestFromSourcesEvents(
     return;
   }
 
-  const date = opts?.date ?? new Date().toISOString().slice(0, 10);
-  const dateObj = new Date(`${date}T00:00:00Z`);
+  // Default to yesterday, not today: CA sites publish a day's page late, so
+  // today's URL is almost always an unpublished listing/fallback page. Starting
+  // from yesterday lands on real content in one scrape on the common path. An
+  // explicit opts.date (e.g. a backfill) overrides this. The walk-back below
+  // still covers the rare case yesterday isn't published either.
+  const today = new Date().toISOString().slice(0, 10);
+  const targetDate = opts?.date ?? addUtcDays(today, -1).toISOString().slice(0, 10);
+  const maxLookback = getMaxLookbackDays();
 
-  yield { type: "start", sources: templates.length, date };
+  yield { type: "start", sources: templates.length, date: targetDate };
 
   for (let i = 0; i < templates.length; i++) {
-    const url = expandSourceUrl(templates[i], dateObj);
-    yield { type: "source-start", url, index: i + 1, total: templates.length };
+    // Walk back from the requested date until a day actually has content. CA
+    // sites publish a day's page late, so the target date often serves a
+    // listing/fallback page (LLM emits 0 items); the previous published day is
+    // what the user actually wants. Each item is stored under the date it came
+    // from, so ca_date stays accurate. Dedup makes re-running idempotent.
+    for (let back = 0; back <= maxLookback; back++) {
+      const dateObj = addUtcDays(targetDate, -back);
+      const date = dateObj.toISOString().slice(0, 10);
+      const url = expandSourceUrl(templates[i], dateObj);
+      yield { type: "source-start", url, index: i + 1, total: templates.length };
 
-    try {
-      const { markdown } = await scrapeUrl(url);
-      report.scraped++;
-      yield { type: "scrape-done", url, chars: markdown.length };
+      try {
+        const { markdown } = await scrapeUrl(url);
+        report.scraped++;
+        yield { type: "scrape-done", url, chars: markdown.length };
 
-      const { items, emitted } = await splitCaPage(markdown);
-      const droppedHere = emitted - items.length;
-      report.droppedUngrounded += droppedHere;
-      yield { type: "split-done", url, emitted, grounded: items.length };
+        const { items, emitted } = await splitCaPage(markdown);
 
-      let ingestedHere = 0;
-      let skippedHere = 0;
-      for (let j = 0; j < items.length; j++) {
-        const item = items[j];
-        const hash = contentHash(item.raw_text);
-        const row = await insertCaItemDedup({
-          ca_date: date,
-          source_url: url,
-          raw_text: item.raw_text,
-          category: item.category,
-          exam_probability: caExamProbability(item.category),
-          content_hash: hash,
-        });
-        if (row) {
-          report.ingested++;
-          ingestedHere++;
-        } else {
-          report.skippedDuplicates++;
-          skippedHere++;
+        // No news found. A real page with genuine content always yields at
+        // least one item, so emitted === 0 means this date isn't published —
+        // step back a day. (Templates with no date token can't walk back, so
+        // the loop naturally ends after this single attempt.)
+        if (emitted === 0 && expandSourceUrl(templates[i], addUtcDays(targetDate, -(back + 1))) !== url) {
+          yield { type: "date-skip", url, date };
+          continue;
         }
+
+        const droppedHere = emitted - items.length;
+        report.droppedUngrounded += droppedHere;
+        yield { type: "split-done", url, emitted, grounded: items.length };
+
+        let ingestedHere = 0;
+        let skippedHere = 0;
+        for (let j = 0; j < items.length; j++) {
+          const item = items[j];
+          const hash = contentHash(item.raw_text);
+          const row = await insertCaItemDedup({
+            ca_date: date,
+            source_url: url,
+            raw_text: item.raw_text,
+            category: item.category,
+            exam_probability: caExamProbability(item.category),
+            content_hash: hash,
+          });
+          if (row) {
+            report.ingested++;
+            ingestedHere++;
+          } else {
+            report.skippedDuplicates++;
+            skippedHere++;
+          }
+          yield {
+            type: "item",
+            url,
+            ingested: ingestedHere,
+            skipped: skippedHere,
+            remaining: items.length - (j + 1),
+          };
+        }
+
         yield {
-          type: "item",
+          type: "source-done",
           url,
           ingested: ingestedHere,
-          skipped: skippedHere,
-          remaining: items.length - (j + 1),
+          skippedDuplicates: skippedHere,
+          droppedUngrounded: droppedHere,
         };
+        // Found content for this source — stop walking back.
+        break;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`ingestFromSources(${url}) failed:`, message);
+        report.errors.push({ url, message });
+        yield { type: "source-error", url, message };
+        // A scrape/network error isn't a "not published" signal — don't hammer
+        // Firecrawl walking back through older days; move to the next source.
+        break;
       }
-
-      yield {
-        type: "source-done",
-        url,
-        ingested: ingestedHere,
-        skippedDuplicates: skippedHere,
-        droppedUngrounded: droppedHere,
-      };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`ingestFromSources(${url}) failed:`, message);
-      report.errors.push({ url, message });
-      yield { type: "source-error", url, message };
     }
   }
 

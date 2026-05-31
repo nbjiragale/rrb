@@ -1,9 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  addUtcDays,
   contentHash,
   expandSourceUrl,
   getCaSourceUrls,
+  getMaxLookbackDays,
   isGrounded,
   normaliseCategory,
   normaliseForHash,
@@ -11,6 +13,32 @@ import {
 
 test("normaliseForHash lowercases and collapses whitespace", () => {
   assert.equal(normaliseForHash("  Hello   WORLD\n\tfoo  "), "hello world foo");
+});
+
+test("addUtcDays steps back across month boundaries in UTC", () => {
+  assert.equal(addUtcDays("2026-05-31", 0).toISOString().slice(0, 10), "2026-05-31");
+  assert.equal(addUtcDays("2026-05-31", -1).toISOString().slice(0, 10), "2026-05-30");
+  assert.equal(addUtcDays("2026-06-01", -1).toISOString().slice(0, 10), "2026-05-31");
+  assert.equal(addUtcDays("2026-03-01", -1).toISOString().slice(0, 10), "2026-02-28");
+});
+
+test("getMaxLookbackDays defaults to 7 and clamps bad input", () => {
+  const saved = process.env.CA_MAX_LOOKBACK_DAYS;
+  try {
+    delete process.env.CA_MAX_LOOKBACK_DAYS;
+    assert.equal(getMaxLookbackDays(), 7);
+    process.env.CA_MAX_LOOKBACK_DAYS = "3";
+    assert.equal(getMaxLookbackDays(), 3);
+    process.env.CA_MAX_LOOKBACK_DAYS = "999";
+    assert.equal(getMaxLookbackDays(), 31);
+    process.env.CA_MAX_LOOKBACK_DAYS = "-5";
+    assert.equal(getMaxLookbackDays(), 0);
+    process.env.CA_MAX_LOOKBACK_DAYS = "garbage";
+    assert.equal(getMaxLookbackDays(), 7);
+  } finally {
+    if (saved === undefined) delete process.env.CA_MAX_LOOKBACK_DAYS;
+    else process.env.CA_MAX_LOOKBACK_DAYS = saved;
+  }
 });
 
 test("contentHash is stable across trivial formatting differences", () => {

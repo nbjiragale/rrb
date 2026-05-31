@@ -22,7 +22,7 @@ interface SourceState {
   dropped: number;
   remaining: number | null;
   error: string | null;
-  status: "scraping" | "splitting" | "ingesting" | "done" | "error";
+  status: "scraping" | "splitting" | "ingesting" | "done" | "error" | "skipped";
 }
 
 interface RunState {
@@ -80,6 +80,9 @@ function applyEvent(prev: RunState, event: StreamEvent): RunState {
       return { ...prev, sources };
     case "scrape-done":
       upsert(event.url, { chars: event.chars, status: "splitting" });
+      return { ...prev, sources };
+    case "date-skip":
+      upsert(event.url, { status: "skipped" });
       return { ...prev, sources };
     case "split-done":
       upsert(event.url, {
@@ -244,6 +247,9 @@ function Dot({ status }: { status: SourceState["status"] }) {
   if (status === "done") {
     return <span aria-hidden className="inline-block h-2 w-2 rounded-full bg-success" />;
   }
+  if (status === "skipped") {
+    return <span aria-hidden className="inline-block h-2 w-2 rounded-full bg-muted" />;
+  }
   return (
     <span
       aria-hidden
@@ -265,6 +271,8 @@ function phaseLabel(s: SourceState): string {
     case "done":
       return `Ingested ${s.ingested} new, ${s.skipped} duplicate(s)` +
         (s.dropped > 0 ? `, ${s.dropped} dropped (ungrounded)` : "") + ".";
+    case "skipped":
+      return "Not published for this date — trying an earlier day…";
     case "error":
       return s.error ?? "Failed.";
   }
