@@ -2,6 +2,7 @@ import Link from "next/link";
 import { listConcepts } from "@/lib/db/queries/concepts";
 import { Card } from "@/components/ui/Card";
 import { IngestForm } from "@/components/ingest/IngestForm";
+import { BulkIngestForm } from "@/components/ingest/BulkIngestForm";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,10 @@ export default async function IngestPage() {
           </p>
         </Card>
       ) : (
-        <IngestForm concepts={concepts} />
+        <div className="grid gap-6">
+          <BulkIngestForm />
+          <IngestForm concepts={concepts} />
+        </div>
       )}
     </div>
   );

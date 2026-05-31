@@ -163,17 +163,20 @@ export async function flagQuestion(id: number, reason: string | null): Promise<b
   return row !== null;
 }
 
-export async function createQuestion(input: {
-  concept_id: number;
-  stem: string;
-  options: string[];
-  correct_option: number;
-  explanation?: string | null;
-  source: QuestionSource;
-  exam_year?: number | null;
-  exam_stage?: string | null;
-  verified: boolean;
-}): Promise<Question> {
+export async function createQuestion(
+  input: {
+    concept_id: number;
+    stem: string;
+    options: string[];
+    correct_option: number;
+    explanation?: string | null;
+    source: QuestionSource;
+    exam_year?: number | null;
+    exam_stage?: string | null;
+    verified: boolean;
+  },
+  executor?: Executor
+): Promise<Question> {
   const row = await queryOne<Question>(
     `INSERT INTO question
        (concept_id, stem, options, correct_option, explanation, source, exam_year, exam_stage, verified)
@@ -189,7 +192,8 @@ export async function createQuestion(input: {
       input.exam_year ?? null,
       input.exam_stage ?? null,
       input.verified,
-    ]
+    ],
+    executor
   );
   return row!;
 }

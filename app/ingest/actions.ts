@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createQuestion, findDuplicateQuestion } from "@/lib/db/queries/questions";
+import { importPyqBatch, type PyqImportResult } from "@/lib/services/pyqImport";
 
 const schema = z.object({
   concept_id: z.coerce.number().int().positive(),
@@ -58,4 +59,29 @@ export async function ingestQuestion(_prev: IngestState, formData: FormData): Pr
 
   revalidatePath("/practice");
   return { ok: true, message: `Added question #${q.id}.` };
+}
+
+export type BulkIngestState = { ok: boolean; message: string; result: PyqImportResult | null };
+
+// A2 — bulk-ingest PYQs from a pasted JSON batch. PYQs are ground truth, so the
+// service stores them verified=true; per-row errors are reported without
+// sinking the whole batch.
+export async function bulkIngestQuestions(
+  _prev: BulkIngestState,
+  formData: FormData
+): Promise<BulkIngestState> {
+  const raw = formData.get("batch");
+  if (typeof raw !== "string" || raw.trim() === "") {
+    return { ok: false, message: "Paste a JSON batch first.", result: null };
+  }
+
+  const result = await importPyqBatch(raw);
+
+  if (result.inserted > 0) revalidatePath("/practice");
+
+  const parts = [`${result.inserted} added`];
+  if (result.duplicates > 0) parts.push(`${result.duplicates} duplicate${result.duplicates > 1 ? "s" : ""} skipped`);
+  if (result.errors.length > 0) parts.push(`${result.errors.length} row${result.errors.length > 1 ? "s" : ""} rejected`);
+
+  return { ok: result.inserted > 0, message: parts.join(", ") + ".", result };
 }
