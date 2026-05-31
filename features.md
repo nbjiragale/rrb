@@ -159,11 +159,15 @@ Read them on screen or play them as audio. A quick daily habit.
 
 - **After every answer**, your mastery for that concept updates, and wrong answers
   get diagnosed in the background.
-- **Each night**, the app refreshes its picture of you: it re-reads which topics
-  appear most on past papers, recomputes your confidence calibration, writes a
-  fresh one-paragraph profile of you (used by the tutor), pulls and summarises new
-  current affairs, and **prepares the next plan** — so a fresh plan is waiting when
-  you open the app.
+- **Each night**, the app refreshes its picture of you and tops up your material:
+  it re-reads which topics appear most on past papers, recomputes your confidence
+  calibration, writes a fresh one-paragraph profile of you (used by the tutor),
+  pulls and summarises new current affairs, **turns those fresh items into review
+  cards**, **generates a few new practice questions for your weakest high-yield
+  topics**, and **prepares the next plan** — so when you open the app, there's a
+  fresh plan, new cards, and targeted questions waiting, with no clicks from you.
+  (The auto-generation is capped each night to keep costs tiny, and simply skips
+  if you haven't set up an AI provider.)
 
 ---
 

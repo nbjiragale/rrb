@@ -1,6 +1,6 @@
 # RRB NTPC — Personal Learning Platform
 
-A single-user, AI-assisted study platform for RRB NTPC prep. See [`CLAUDE.md`](./CLAUDE.md) for the full architecture, hard rules, schema, and conventions, and the four spec docs it references.
+A single-user, AI-assisted study platform for RRB NTPC prep. See [`CLAUDE.md`](./CLAUDE.md) for the full architecture, hard rules, schema, and conventions, and the four spec docs it references. **New here?** [`features.md`](./features.md) is a first-day "how do I use it?" guide; [`user-guide.md`](./user-guide.md) covers install and free hosting.
 
 ## Status: v6 (knowledge graph + insights dashboard)
 
@@ -45,7 +45,7 @@ Later phases (calibration, semantic memory, dashboard) plug in without reworking
 **v6 — knowledge graph + insights dashboard:**
 - **Visual knowledge graph** — concepts as nodes coloured by mastery, edges styled per relation (prerequisite / contrasts-with / related); click a node to practise. Plus edge authoring + delete (A3) at `/graph`.
 - **Learning resources** — attach external "where to learn" pointers (book/video/article/notes, label + URL + priority) per concept; surfaced on the practice view. Routes out, stores nothing (A4).
-- **Tutor contrast-surfacing** — when a `contrasts_with` partner is itself weak, the tutor is told to disambiguate the confused pair explicitly (E4).
+- **Tutor contrast-surfacing** — when a `contrasts_with` partner is itself weak, the tutor is told to disambiguate the confused pair explicitly (E4). It likewise surfaces the concept's **weak prerequisites**, so it can point at a shaky foundation as the likely root of a struggle rather than only answering the surface question (§8 read path).
 - **Insights dashboard** (`/dashboard`): weakness **heatmap** (J1), **mastery trends** over time (J2), **projected readiness** vs a target band with honest uncertainty (J3), **streak** (J4, gentle), and **syllabus coverage** (J5).
 - **Mastery history** — a nightly append-only `concept_mastery_snapshot`, backfilled retroactively from the attempt log on first run so trends aren't empty.
 
@@ -53,18 +53,18 @@ The platform is now feature-complete across the v1–v6 plan in `CLAUDE.md §11`
 
 ### Nightly batch
 
-PYQ-stat recompute + plan generation run via the cron endpoint `GET /api/cron` (protect with `CRON_SECRET`; point Vercel Cron at it). You can also trigger a plan from the Planner page.
+`GET /api/cron` (protect with `CRON_SECRET`; point Vercel Cron at it) recomputes derived state and tops up material in one fault-isolated pass — PYQ weights → `exam_weight`, diagnosis sweep, embedding backfill, calibration refit, CA scrape + summaries, **grounded CA cards from fresh items**, **replenished verified questions for weak high-yield concepts**, the daily mastery snapshot, the learner profile, and the day's plan. Each step is wrapped so one failure can't starve the rest (notably the plan). The two auto-generation steps are bounded/tunable via `CA_AUTOGEN_*` and `QGEN_*` (set `0` to disable) and skip when no LLM is configured. You can also trigger a plan from the Planner page.
 
 > Deferred within v2: offline review sync (B4) — tracked, not yet built.
 
 ## Tech
 
-Next.js (App Router, server actions) · Postgres + pgvector · `ts-fsrs` · provider-agnostic LLM router (Anthropic-compatible) · Tailwind (Claude.ai-style tokens) · PWA.
+Next.js (App Router, server actions) · Postgres + pgvector · `ts-fsrs` · provider-agnostic LLM router (Anthropic- or OpenAI-compatible wire formats) · Tailwind (Claude.ai-style tokens) · PWA.
 
 ## Tests
 
 ```bash
-npm test   # pure unit tests (BKT student model), no DB needed
+npm test   # pure unit tests (BKT, calibration, planner, scoring, readiness, streak, …), no DB needed
 ```
 
 ## Setup
@@ -78,7 +78,7 @@ npm test   # pure unit tests (BKT student model), no DB needed
    cp .env.example .env
    # edit DATABASE_URL
    ```
-3. **Run migrations** (0001 = v1 review tables; 0002 = practice/mastery; 0003 = planner/mocks; 0004 = `misconception`, `misconception_hit`, `current_affairs_item`; 0005 = `interaction`, `learner_profile`, `calibration_model`; 0006 = `concept_resource`, `concept_mastery_snapshot`):
+3. **Run migrations** (0001 = v1 review tables; 0002 = practice/mastery; 0003 = planner/mocks; 0004 = `misconception`, `misconception_hit`, `current_affairs_item`; 0005 = `interaction`, `learner_profile`, `calibration_model`; 0006 = `concept_resource`, `concept_mastery_snapshot`; 0007 = CA content-hash dedup; 0008 = `concept_mastery.confidence_count`):
    ```bash
    npm run db:migrate
    ```

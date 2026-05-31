@@ -383,7 +383,7 @@ Rules:
 2. **If wrong:** one async LLM call classifies the failure → upserts `misconception`, inserts `misconception_hit`. AI interprets; code stores.
 3. **If card reviewed:** `ts-fsrs` computes new state → insert `review` + update `card`.
 4. **Free text** (Feynman/doubt): embed → insert `interaction`.
-5. **Nightly batch:** regenerate `learner_profile`, recompute `pyq_topic_stats` → refresh `exam_weight`, refit `calibration_model`, run FSRS bulk scheduling, generate tomorrow's `study_plan`.
+5. **Nightly batch** (`app/api/cron/route.ts`; each step fault-isolated so one failure never starves the rest — notably the plan, which runs last): recompute `pyq_topic_stats` → refresh `exam_weight`, diagnose pending wrong attempts, backfill embeddings, refit `calibration_model`, scrape + summarise current affairs, **auto-generate grounded CA cards** from fresh items, **replenish verified questions for the weakest high-yield concepts** (both bounded via env caps — `CA_AUTOGEN_*` / `QGEN_*` — for cost discipline, Hard Rule §4), record the mastery snapshot, regenerate `learner_profile`, and generate the day's `study_plan`.
 
 ---
 

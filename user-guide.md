@@ -204,9 +204,21 @@ vectors (the DB column is `vector(1024)`).
 
 ## 8. The nightly batch (keeps insights fresh)
 
-A single endpoint recomputes derived state: PYQ weights, misconception
-diagnosis sweep, embedding backfill, calibration refit, current-affairs
-summaries, the daily mastery snapshot (for trends), and tomorrow's plan.
+A single endpoint recomputes derived state and tops up your material: PYQ
+weights, misconception diagnosis sweep, embedding backfill, calibration refit,
+current-affairs scrape + summaries, **grounded cards built from fresh CA items**,
+**replenished practice questions for your weakest high-yield concepts**, the
+daily mastery snapshot (for trends), the learner profile, and the day's plan.
+Each step is fault-isolated, so one flaky call never blocks the others. The two
+auto-generation steps are bounded and tunable (and skip when no LLM is set):
+
+| Env | Default | Meaning |
+|---|---|---|
+| `CA_AUTOGEN_MAX_ITEMS` | 5 | CA items turned into cards per night (0 = off) |
+| `CA_AUTOGEN_CARDS_PER_ITEM` | 3 | cards per CA item |
+| `QGEN_MAX_CONCEPTS` | 3 | weak concepts topped up per night (0 = off) |
+| `QGEN_PER_CONCEPT` | 3 | questions generated per concept |
+| `QGEN_MIN_VERIFIED` | 5 | only replenish concepts below this many verified questions |
 
 Trigger it manually any time:
 
