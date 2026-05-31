@@ -36,6 +36,9 @@ export interface CompleteOptions {
   // §8 escalation: a tutor turn flagged complex uses the strong model. Every
   // other case stays on the cheap model (Hard Rule §4 cost discipline).
   complex?: boolean;
+  // Enable live web search for this call (OpenRouter web plugin). Only honoured
+  // on the OpenAI wire format; ignored otherwise. Used by the tutor for accuracy.
+  web?: boolean;
 }
 
 // Prompt caching is on by default; LLM_PROMPT_CACHE=0/false disables it as an
@@ -88,6 +91,20 @@ function reasoningConfig(override?: ReasoningOption): ReasoningOption {
 // LLM isn't configured, instead of throwing into the user's flow.
 export function isLlmConfigured(): boolean {
   return Boolean(process.env.LLM_BASE_URL && process.env.LLM_API_KEY);
+}
+
+// Whether the tutor should run with live web search. On by default but only
+// effective on the OpenAI wire format (the web plugin is OpenRouter's), so a
+// DeepSeek-direct (anthropic) setup transparently runs without it. Set
+// LLM_TUTOR_WEB_SEARCH=0 to disable (cost — web results are billed per call).
+export function tutorWebSearchEnabled(): boolean {
+  const v = process.env.LLM_TUTOR_WEB_SEARCH;
+  const on = v !== "0" && v !== "false";
+  return on && apiFormat() === "openai";
+}
+
+function webMaxResults(): number {
+  return Number(process.env.LLM_WEB_MAX_RESULTS ?? 3);
 }
 
 export async function complete(opts: CompleteOptions): Promise<string> {
@@ -203,6 +220,8 @@ async function completeOpenAI(
       // budget for the answer; a cap keeps thinking from eating max_tokens.
       // OpenRouter passes this through; ignored by non-reasoning models.
       reasoning: reasoningConfig(opts.reasoning),
+      // Live web search via OpenRouter's web plugin, when requested (tutor).
+      ...(opts.web ? { plugins: [{ id: "web", max_results: webMaxResults() }] } : {}),
     }),
   });
 

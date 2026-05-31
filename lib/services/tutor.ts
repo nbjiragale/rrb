@@ -1,4 +1,4 @@
-import { complete, type ChatMessage } from "@/lib/llm/router";
+import { complete, tutorWebSearchEnabled, type ChatMessage } from "@/lib/llm/router";
 import { tryEmbed } from "@/lib/llm/embed";
 import { getConcept } from "@/lib/db/queries/concepts";
 import { getMastery } from "@/lib/db/queries/mastery";
@@ -56,6 +56,8 @@ export async function askTutor(input: {
     messages: input.history,
     task: "tutor",
     maxTokens: 4096,
+    // Live web search for factual accuracy (current affairs, recent facts).
+    web: tutorWebSearchEnabled(),
   });
 
   // Store the doubt as recallable memory (walkthrough B) — a future semantic

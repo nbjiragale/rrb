@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Select, Textarea } from "@/components/ui/Field";
 import { Markdown } from "@/components/ui/Markdown";
@@ -9,8 +9,28 @@ import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
 import type { Concept } from "@/lib/db/types";
 import type { ChatMessage } from "@/lib/llm/router";
 
+// Pending-state indicator. With web search on, it reads "Searching the web…"
+// first (the plugin runs before the answer streams), then "Answering…"; without
+// it, a plain "Thinking…". Cosmetic, but communicates that a web lookup is
+// happening. Remounts each turn (rendered only while pending), so the timer
+// restarts cleanly.
+function ThinkingStatus({ webSearch }: { webSearch: boolean }) {
+  const [phase, setPhase] = useState<"search" | "answer">(webSearch ? "search" : "answer");
+  useEffect(() => {
+    if (!webSearch) return;
+    const t = setTimeout(() => setPhase("answer"), 2500);
+    return () => clearTimeout(t);
+  }, [webSearch]);
+  const label = !webSearch ? "Thinking…" : phase === "search" ? "Searching the web…" : "Answering…";
+  return (
+    <p className="text-muted text-body-lg motion-safe:animate-pulse" aria-live="polite">
+      {label}
+    </p>
+  );
+}
+
 // Mirrors Claude.ai's chat: assistant text plain on the canvas, user in a soft bubble.
-export function TutorChat({ concepts }: { concepts: Concept[] }) {
+export function TutorChat({ concepts, webSearch = false }: { concepts: Concept[]; webSearch?: boolean }) {
   const firstId = concepts[0]?.id ?? 0;
   const [conceptId, setConceptId] = useLocalStorage<number>("tutor:conceptId", firstId);
   const safeConceptId = concepts.some((c) => c.id === conceptId) ? conceptId : firstId;
@@ -61,6 +81,11 @@ export function TutorChat({ concepts }: { concepts: Concept[] }) {
             Clear
           </Button>
         )}
+        {webSearch && (
+          <span className="ml-auto text-caption uppercase tracking-[0.02em] text-muted">
+            Web search on
+          </span>
+        )}
       </div>
 
       <div className="flex-1 space-y-6 overflow-y-auto py-4">
@@ -82,7 +107,7 @@ export function TutorChat({ concepts }: { concepts: Concept[] }) {
             </div>
           )
         )}
-        {pending && <p className="text-muted text-body-lg">· · ·</p>}
+        {pending && <ThinkingStatus webSearch={webSearch} />}
         {error && <p className="text-danger text-small">{error}</p>}
       </div>
 

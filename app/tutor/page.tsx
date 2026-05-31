@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { listConcepts } from "@/lib/db/queries/concepts";
+import { tutorWebSearchEnabled } from "@/lib/llm/router";
 import { Card } from "@/components/ui/Card";
 import { TutorChat } from "@/components/tutor/TutorChat";
 
@@ -24,5 +25,5 @@ export default async function TutorPage() {
     );
   }
 
-  return <TutorChat concepts={concepts} />;
+  return <TutorChat concepts={concepts} webSearch={tutorWebSearchEnabled()} />;
 }
