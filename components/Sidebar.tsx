@@ -8,7 +8,6 @@ import {
   Timer,
   CalendarCheck,
   ScrollText,
-  SlidersHorizontal,
   MessageCircle,
   LayoutDashboard,
   Upload,
@@ -20,14 +19,13 @@ import { NAV_SINGLES, NAV_GROUPS, isActiveHref } from "@/lib/nav";
 const SINGLE_ICONS: Record<string, LucideIcon> = {
   "/review": GraduationCap,
   "/practice": PencilLine,
-  "/mock": Timer,
   "/planner": CalendarCheck,
   "/digest": ScrollText,
-  "/exam": SlidersHorizontal,
 };
 
 // Icon per group (keyed to lib/nav NAV_GROUPS).
 const GROUP_ICONS: Record<string, LucideIcon> = {
+  mock: Timer,
   "study-aids": MessageCircle,
   insights: LayoutDashboard,
   content: Upload,
