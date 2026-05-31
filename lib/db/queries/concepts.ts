@@ -11,6 +11,11 @@ export async function getConcept(id: number): Promise<Concept | null> {
   return queryOne<Concept>(`SELECT * FROM concept WHERE id = $1`, [id]);
 }
 
+// Lightweight id+name list for resolving concept references during bulk import.
+export async function getConceptIdMap(): Promise<{ id: number; name: string }[]> {
+  return query<{ id: number; name: string }>(`SELECT id, name FROM concept`);
+}
+
 export async function createConcept(input: {
   name: string;
   subject: Subject;

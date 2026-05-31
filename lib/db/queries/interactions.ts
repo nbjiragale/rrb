@@ -33,18 +33,52 @@ export interface SemanticMatch {
 }
 
 // J2 — top-k cosine recall over embedded interactions. (1 − distance) similarity.
+// Optional type narrows recall to one memory kind (note / doubt / feynman).
 export async function searchInteractions(
   embedding: number[],
-  limit = 5
+  limit = 5,
+  type?: InteractionType | null
 ): Promise<SemanticMatch[]> {
   return query<SemanticMatch>(
     `SELECT id, type, concept_id, content, ai_feedback, created_at,
             1 - (embedding <=> $1::vector) AS similarity
      FROM interaction
-     WHERE embedding IS NOT NULL
+     WHERE embedding IS NOT NULL ${type ? "AND type = $3" : ""}
      ORDER BY embedding <=> $1::vector
      LIMIT $2`,
-    [toVectorLiteral(embedding), limit]
+    type ? [toVectorLiteral(embedding), limit, type] : [toVectorLiteral(embedding), limit]
+  );
+}
+
+// J2 fallback — keyword recall when no embedding provider is configured (graceful
+// degradation, like the tutor/diagnosis paths). similarity is 0 (not a cosine score).
+export async function textSearchInteractions(
+  q: string,
+  limit = 5,
+  type?: InteractionType | null
+): Promise<SemanticMatch[]> {
+  return query<SemanticMatch>(
+    `SELECT id, type, concept_id, content, ai_feedback, created_at, 0::float8 AS similarity
+     FROM interaction
+     WHERE (content ILIKE $1 OR ai_feedback ILIKE $1) ${type ? "AND type = $3" : ""}
+     ORDER BY created_at DESC
+     LIMIT $2`,
+    type ? [`%${q}%`, limit, type] : [`%${q}%`, limit]
+  );
+}
+
+// Recent memory entries for display (e.g. the learner's latest notes).
+export async function listRecentInteractions(
+  limit = 10,
+  type?: InteractionType | null
+): Promise<Interaction[]> {
+  return query<Interaction>(
+    `SELECT id, type, concept_id, content, ai_feedback, created_at
+     FROM interaction
+     ${type ? "WHERE type = $2" : ""}
+     ORDER BY created_at DESC
+     LIMIT $1`,
+    type ? [limit, type] : [limit]
   );
 }
 

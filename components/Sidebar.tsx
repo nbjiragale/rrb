@@ -19,6 +19,7 @@ import {
   Gauge,
   ScrollText,
   LayoutDashboard,
+  BrainCircuit,
 } from "lucide-react";
 
 const items = [
@@ -29,6 +30,7 @@ const items = [
   { href: "/planner", label: "Planner", icon: CalendarCheck },
   { href: "/tutor", label: "Tutor", icon: MessageCircle },
   { href: "/feynman", label: "Feynman", icon: Lightbulb },
+  { href: "/recall", label: "Recall", icon: BrainCircuit },
   { href: "/diagnosis", label: "Diagnosis", icon: Stethoscope },
   { href: "/calibration", label: "Calibration", icon: Gauge },
   { href: "/generate", label: "Generate", icon: Sparkles },

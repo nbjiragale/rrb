@@ -11,7 +11,6 @@ export const CONTRAST_WEAK_THRESHOLD = 0.5;
 export interface TutorContext {
   conceptName: string;
   conceptDescription: string | null;
-  profileSummary: string | null;
   mastery: ConceptMastery | null;
   recentErrors: RecentError[];
   semanticMatches: SemanticMatch[];
@@ -19,7 +18,7 @@ export interface TutorContext {
 }
 
 const PROFILE_STUB =
-  "Learner profile generation arrives in v5. For now treat the learner as a focused RRB NTPC aspirant; tailor depth to the per-concept mastery below.";
+  "No nightly learner profile yet. Treat the learner as a focused RRB NTPC aspirant; tailor depth to the per-concept mastery below.";
 
 export function buildTutorSystemPrompt(): string {
   return [
@@ -30,10 +29,16 @@ export function buildTutorSystemPrompt(): string {
   ].join(" ");
 }
 
+// The stable, cacheable prefix (§8): persona + the nightly learner profile.
+// Both change at most once a day, so they earn a prompt-cache breakpoint while
+// the per-concept [MEMORY] slice (built below) stays volatile and uncached.
+export function buildTutorCachedPrefix(profileSummary: string | null): string {
+  return `${buildTutorSystemPrompt()}\n\n[PROFILE]\n${profileSummary ?? PROFILE_STUB}`;
+}
+
 // The selectively-retrieved memory slice (Hard Rule §7 — never dump everything).
 export function buildTutorMemoryBlock(ctx: TutorContext): string {
   const lines: string[] = [];
-  lines.push(`Profile: ${ctx.profileSummary ?? PROFILE_STUB}`);
   lines.push(
     `Concept: ${ctx.conceptName}${ctx.conceptDescription ? ` — ${ctx.conceptDescription}` : ""}`
   );

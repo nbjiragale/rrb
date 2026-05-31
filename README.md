@@ -11,7 +11,7 @@ A single-user, AI-assisted study platform for RRB NTPC prep. See [`CLAUDE.md`](.
 - **Responsive, installable PWA** on your own Postgres (L2, L3).
 
 **v2 — practice + memory + tutor:**
-- **PYQ ingestion** — tag a past-paper question to a concept with year/stage; duplicates flagged; stored verified (A5).
+- **PYQ ingestion** — tag a past-paper question to a concept with year/stage; duplicates flagged; stored verified (A5). Bulk-import a JSON batch on the same page — `concept` may be a name (matched against the ontology) or id; duplicates and malformed rows are skipped and reported, the rest still import (A2).
 - **Topic practice** — pick a concept, answer MCQs; **confidence (1–5) captured before reveal**; attempts logged append-only with timing (C1, G1).
 - **Student model (BKT)** — `concept_mastery.p_known` updated per attempt inside a transaction; derived mastery level (the foundation for the planner and heatmap).
 - **AI tutor** — per-concept chat that assembles the read-path context (mastery + recent errors) and answers via the **provider-agnostic LLM router**; personalization is retrieval, never fine-tuning (E1, E2, K1, L1).
@@ -83,9 +83,15 @@ npm test   # pure unit tests (BKT student model), no DB needed
    npm run db:migrate
    ```
    For the AI tutor, diagnosis, and question/card generation, set `LLM_BASE_URL` / `LLM_API_KEY` (and optional model names) in `.env`. For semantic recall / Feynman embeddings set `EMBED_BASE_URL` / `EMBED_API_KEY` / `EMBED_MODEL` (any OpenAI-compatible 1024-d embeddings host). All these features degrade gracefully when unconfigured — text is stored now and embedded by the nightly batch once a provider is set.
-4. **(Optional) Seed** an exam config + sample concept/cards:
+4. **Seed the concept ontology** (recommended — the RRB NTPC syllabus tree + its
+   prerequisite/contrast graph, so the planner and tutor have something to work
+   with from day one). Idempotent, so it's safe to re-run:
    ```bash
-   node --experimental-strip-types scripts/seed.ts
+   npm run db:seed:ontology
+   ```
+   Optionally also seed an exam config + a few sample cards/PYQs for the demo loop:
+   ```bash
+   npm run db:seed
    ```
 5. **Run the app**
    ```bash

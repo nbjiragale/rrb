@@ -10,7 +10,7 @@ import {
   insertInteraction,
   type SemanticMatch,
 } from "@/lib/db/queries/interactions";
-import { buildTutorSystemPrompt, buildTutorMemoryBlock } from "@/lib/llm/prompts/tutor";
+import { buildTutorCachedPrefix, buildTutorMemoryBlock } from "@/lib/llm/prompts/tutor";
 
 // Read path (architecture §8): assemble the relevant memory slice for one
 // concept, then a single LLM call. The model appears to remember the learner;
@@ -37,15 +37,19 @@ export async function askTutor(input: {
   const memory = buildTutorMemoryBlock({
     conceptName: concept.name,
     conceptDescription: concept.description,
-    profileSummary: profile?.summary_text ?? null,
     mastery,
     recentErrors,
     semanticMatches,
     contrasts,
   });
 
+  // Cache the stable prefix (persona + nightly profile); keep the per-concept
+  // memory slice uncached as it varies every call (§8 / Hard Rule §4).
   const answer = await complete({
-    system: `${buildTutorSystemPrompt()}\n\n[MEMORY]\n${memory}`,
+    system: [
+      { text: buildTutorCachedPrefix(profile?.summary_text ?? null), cache: true },
+      { text: `[MEMORY]\n${memory}`, cache: false },
+    ],
     messages: input.history,
     task: "tutor",
     maxTokens: 4096,
