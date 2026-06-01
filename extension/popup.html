@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      :root { color-scheme: light; }
+      body {
+        width: 300px;
+        margin: 0;
+        padding: 16px;
+        font: 400 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+        color: #262624;
+        background: #faf9f5;
+      }
+      h1 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
+      p.sub { margin: 0 0 14px; color: #5c5a54; font-size: 12px; }
+      label { display: block; font-size: 12px; font-weight: 500; margin: 10px 0 4px; }
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 8px 10px;
+        border: 1px solid #d8d4c8;
+        border-radius: 8px;
+        background: #fff;
+        font: inherit;
+      }
+      input:focus { outline: none; border-color: #d97757; box-shadow: 0 0 0 3px rgba(217,119,87,0.25); }
+      button {
+        margin-top: 14px;
+        width: 100%;
+        padding: 9px 12px;
+        border: none;
+        border-radius: 8px;
+        background: #d97757;
+        color: #fff;
+        font: 500 13px/1 system-ui, sans-serif;
+        cursor: pointer;
+      }
+      button:hover { background: #c2603f; }
+      #status { margin-top: 8px; font-size: 12px; min-height: 16px; }
+      .ok { color: #5b8c6e; }
+      .err { color: #bf5340; }
+      hr { border: none; border-top: 1px solid #e6e3da; margin: 16px 0 12px; }
+      .last-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #82807a; margin-bottom: 4px; }
+      #last { font-size: 12px; color: #5c5a54; }
+    </style>
+  </head>
+  <body>
+    <h1>Testbook Capture</h1>
+    <p class="sub">Finish a Testbook mock and open its result page — it imports automatically. Your data only.</p>
+
+    <label for="endpoint">Study app URL</label>
+    <input id="endpoint" placeholder="http://localhost:3000" spellcheck="false" />
+
+    <label for="token">Import token (optional)</label>
+    <input id="token" type="password" placeholder="matches TESTBOOK_IMPORT_TOKEN" spellcheck="false" />
+
+    <button id="save">Save</button>
+    <div id="status"></div>
+
+    <hr />
+    <div class="last-title">Last import</div>
+    <div id="last">None yet.</div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

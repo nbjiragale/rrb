@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "RRB Study — Testbook Capture",
+  "version": "1.0.0",
+  "description": "Captures your completed Testbook mock results and imports them into your RRB study app for diagnosis. Personal use; your data only.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://*.testbook.com/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "optional_host_permissions": ["https://*/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html", "default_title": "Testbook Capture" },
+  "content_scripts": [
+    {
+      "matches": ["https://*.testbook.com/*"],
+      "js": ["inject.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://*.testbook.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "world": "ISOLATED"
+    }
+  ]
+}
