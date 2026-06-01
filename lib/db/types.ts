@@ -53,7 +53,7 @@ export interface ExamConfig {
   created_at: string;
 }
 
-export type QuestionSource = "pyq" | "ai_generated" | "adversarial";
+export type QuestionSource = "pyq" | "ai_generated" | "adversarial" | "testbook";
 export type AttemptContext = "mock" | "practice" | "feynman" | "quiz";
 export type MasteryLevel = "new" | "learning" | "review" | "mastered";
 export type Confidence = 1 | 2 | 3 | 4 | 5;
@@ -72,6 +72,8 @@ export interface Question {
   exam_year: number | null;
   exam_stage: string | null;
   gen_source: string | null;
+  /** Stable provider key for externally-imported items, e.g. 'testbook:q:<id>'. */
+  external_ref: string | null;
   verified: boolean;
   created_at: string;
 }
@@ -235,4 +237,6 @@ export interface MockSession {
   accuracy: number | null;
   time_limit_s: number | null;
   pacing_data: { q: number; cumulative_ms: number }[] | null;
+  /** Provider key for imported sessions (migration 0009); null for native mocks. */
+  external_ref?: string | null;
 }

@@ -19,6 +19,55 @@ export async function getMockSession(id: number): Promise<MockSession | null> {
   return queryOne<MockSession>(`SELECT * FROM mock_session WHERE id = $1`, [id]);
 }
 
+// Idempotency check for imported mocks (migration 0009).
+export async function findMockByExternalRef(externalRef: string): Promise<number | null> {
+  const row = await queryOne<{ id: number }>(
+    `SELECT id FROM mock_session WHERE external_ref = $1`,
+    [externalRef]
+  );
+  return row?.id ?? null;
+}
+
+// An imported Testbook mock arrives already completed, so it's inserted in one
+// shot (started/completed timestamps from the source) rather than via the
+// start→submit flow. Returns the new session id.
+export async function createImportedMockSession(
+  input: {
+    type: MockType;
+    external_ref: string;
+    taken_at: string | null;
+    total_questions: number;
+    attempted_count: number;
+    score: number;
+    accuracy: number;
+    total_time_s: number | null;
+    pacing_data: { q: number; cumulative_ms: number }[];
+  },
+  executor?: Executor
+): Promise<number> {
+  const row = await queryOne<{ id: number }>(
+    `INSERT INTO mock_session
+       (type, external_ref, started_at, completed_at, total_questions,
+        attempted_count, score, accuracy, time_limit_s, pacing_data)
+     VALUES ($1, $2, COALESCE($3::timestamptz, now()), COALESCE($3::timestamptz, now()),
+             $4, $5, $6, $7, $8, $9::jsonb)
+     RETURNING id`,
+    [
+      input.type,
+      input.external_ref,
+      input.taken_at,
+      input.total_questions,
+      input.attempted_count,
+      input.score,
+      input.accuracy,
+      input.total_time_s,
+      JSON.stringify(input.pacing_data),
+    ],
+    executor
+  );
+  return row!.id;
+}
+
 export async function completeMockSession(
   id: number,
   input: {
