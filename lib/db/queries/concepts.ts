@@ -16,6 +16,15 @@ export async function getConceptIdMap(): Promise<{ id: number; name: string }[]>
   return query<{ id: number; name: string }>(`SELECT id, name FROM concept`);
 }
 
+// id + name + topic for the Testbook tag→concept resolver (matches on either).
+export async function getConceptResolveList(): Promise<
+  { id: number; name: string; topic: string }[]
+> {
+  return query<{ id: number; name: string; topic: string }>(
+    `SELECT id, name, topic FROM concept`
+  );
+}
+
 export async function createConcept(input: {
   name: string;
   subject: Subject;

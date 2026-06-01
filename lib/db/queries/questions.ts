@@ -195,6 +195,59 @@ export async function flagQuestion(id: number, reason: string | null): Promise<b
   return row !== null;
 }
 
+// Reuse-or-create lookup for externally-imported questions (Testbook), keyed by
+// the stable provider ref (question.external_ref). Lets a question seen across
+// multiple mocks map to one row.
+export async function findQuestionByExternalRef(
+  externalRef: string,
+  executor?: Executor
+): Promise<{ id: number; concept_id: number } | null> {
+  return queryOne<{ id: number; concept_id: number }>(
+    `SELECT id, concept_id FROM question WHERE external_ref = $1`,
+    [externalRef],
+    executor
+  );
+}
+
+// Persist an imported question. Externally-authored, pre-vetted exam content is
+// the same trust level as a PYQ, so it is stored verified=true and bypasses the
+// LLM verify gate (Hard Rule §2 governs AI-*generated* content). The provider
+// ref makes re-imports idempotent.
+export async function createImportedQuestion(
+  input: {
+    concept_id: number;
+    stem: string;
+    options: string[];
+    correct_option: number;
+    explanation?: string | null;
+    difficulty?: number | null;
+    source: "testbook";
+    external_ref: string;
+  },
+  executor?: Executor
+): Promise<number> {
+  const row = await queryOne<{ id: number }>(
+    `INSERT INTO question
+       (concept_id, stem, options, correct_option, explanation, difficulty, source, external_ref, verified)
+     VALUES ($1, $2, $3::jsonb, $4, $5, COALESCE($6, 0.5), $7, $8, true)
+     ON CONFLICT (external_ref) WHERE external_ref IS NOT NULL
+       DO UPDATE SET external_ref = EXCLUDED.external_ref
+     RETURNING id`,
+    [
+      input.concept_id,
+      input.stem,
+      JSON.stringify(input.options),
+      input.correct_option,
+      input.explanation ?? null,
+      input.difficulty ?? null,
+      input.source,
+      input.external_ref,
+    ],
+    executor
+  );
+  return row!.id;
+}
+
 export async function createQuestion(
   input: {
     concept_id: number;

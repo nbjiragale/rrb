@@ -55,6 +55,32 @@ The platform is now feature-complete across the v1–v6 plan in `CLAUDE.md §11`
 
 `GET /api/cron` (protect with `CRON_SECRET`; point Vercel Cron at it) recomputes derived state and tops up material in one fault-isolated pass — PYQ weights → `exam_weight`, diagnosis sweep, embedding backfill, calibration refit, CA scrape + summaries, **grounded CA cards from fresh items**, **replenished verified questions for weak high-yield concepts**, the daily mastery snapshot, the learner profile, and the day's plan. Each step is wrapped so one failure can't starve the rest (notably the plan). The two auto-generation steps are bounded/tunable via `CA_AUTOGEN_*` and `QGEN_*` (set `0` to disable) and skip when no LLM is configured. You can also trigger a plan from the Planner page.
 
+### Testbook import (external integration)
+
+Paste a completed Testbook test's result JSON (the `studenttestresult` analysis
+API response) at `/import/testbook` to fold a real mock into your own data: one
+`mock_session` + an immutable `attempt` per question, each run through BKT
+mastery via the shared write path. Wrong attempts carry no special wiring —
+they land in `attempt` with no `misconception_hit`, so the nightly diagnosis
+sweep classifies the *why* automatically.
+
+- **Vendor-isolated.** `lib/testbook/resultAdapter.ts` is the only code that
+  knows Testbook's JSON shape; it emits a neutral `NormalizedMock` the importer
+  consumes. Swap the adapter to onboard another provider.
+- **Idempotent.** Keyed on the attempt timestamp (and the optional URL test id),
+  so re-importing the same result is a no-op.
+- **No mis-attribution.** A topic tag is mapped to a concept only on an
+  unambiguous name/topic match or an explicit override; unmatched tags are
+  surfaced in the UI (map once → re-import) rather than guessed, so BKT is never
+  poisoned. Imported questions are stored `verified=true` (human-authored,
+  PYQ-trust content; the verify gate governs AI-*generated* items per §2).
+- **Signals.** Per-question time vs the cohort average flags *rushed* wrong
+  answers (likely traps, not gaps); cohort wrong-share seeds question difficulty.
+
+Personal single-user use of your own subscription data (Hard Rule §5) — nothing
+is shared. A browser-extension capture layer can POST the same payload to the
+import server action; the adapter/contract are the stable seam for it.
+
 > Deferred within v2: offline review sync (B4) — tracked, not yet built.
 
 ## Tech
@@ -78,7 +104,7 @@ npm test   # pure unit tests (BKT, calibration, planner, scoring, readiness, str
    cp .env.example .env
    # edit DATABASE_URL
    ```
-3. **Run migrations** (0001 = v1 review tables; 0002 = practice/mastery; 0003 = planner/mocks; 0004 = `misconception`, `misconception_hit`, `current_affairs_item`; 0005 = `interaction`, `learner_profile`, `calibration_model`; 0006 = `concept_resource`, `concept_mastery_snapshot`; 0007 = CA content-hash dedup; 0008 = `concept_mastery.confidence_count`):
+3. **Run migrations** (0001 = v1 review tables; 0002 = practice/mastery; 0003 = planner/mocks; 0004 = `misconception`, `misconception_hit`, `current_affairs_item`; 0005 = `interaction`, `learner_profile`, `calibration_model`; 0006 = `concept_resource`, `concept_mastery_snapshot`; 0007 = CA content-hash dedup; 0008 = `concept_mastery.confidence_count`; 0009 = Testbook mock import (`question.external_ref`, `mock_session.external_ref`, `testbook_tag_map`)):
    ```bash
    npm run db:migrate
    ```
