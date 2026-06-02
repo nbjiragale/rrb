@@ -9,6 +9,7 @@ import {
 } from "@/lib/llm/prompts/generate";
 import { verifyGroundedCards } from "@/lib/llm/verify";
 import { genTokens } from "@/lib/config";
+import { numEnv } from "@/lib/env";
 import {
   getCaItem,
   markCaProcessed,
@@ -22,8 +23,8 @@ import type { Concept } from "@/lib/db/types";
 
 // Per-night caps for auto-generation (Hard Rule §4 cost discipline). Env-tunable;
 // 0 disables the step entirely.
-const CA_AUTOGEN_MAX_ITEMS = Number(process.env.CA_AUTOGEN_MAX_ITEMS ?? 5);
-const CA_AUTOGEN_CARDS_PER_ITEM = Number(process.env.CA_AUTOGEN_CARDS_PER_ITEM ?? 3);
+const CA_AUTOGEN_MAX_ITEMS = numEnv("CA_AUTOGEN_MAX_ITEMS", 5);
+const CA_AUTOGEN_CARDS_PER_ITEM = numEnv("CA_AUTOGEN_CARDS_PER_ITEM", 3);
 
 const cardsSchema = z.array(
   z.object({

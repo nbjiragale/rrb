@@ -48,6 +48,25 @@ function promptCacheEnabled(): boolean {
   return v !== "0" && v !== "false";
 }
 
+// No LLM call may hang the request forever. Every fetch carries a timeout so an
+// upstream stall (DeepSeek/OpenRouter/Gemini) surfaces as a clear, catchable
+// error instead of a frozen tutor/practice turn. Tunable via LLM_TIMEOUT_MS.
+function llmTimeoutMs(): number {
+  const v = Number(process.env.LLM_TIMEOUT_MS);
+  return Number.isFinite(v) && v > 0 ? v : 60_000;
+}
+
+async function llmFetch(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(llmTimeoutMs()) });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "TimeoutError") {
+      throw new Error(`LLM request timed out after ${llmTimeoutMs()}ms (raise LLM_TIMEOUT_MS).`);
+    }
+    throw err;
+  }
+}
+
 function toSegments(system?: string | SystemSegment[]): SystemSegment[] {
   if (!system) return [];
   const segs = typeof system === "string" ? [{ text: system }] : system;
@@ -172,7 +191,7 @@ export async function completeGrounded(opts: {
     generationConfig: { maxOutputTokens: opts.maxTokens ?? 4096 },
   };
 
-  const res = await fetch(`${groundingBaseUrl()}/models/${groundingModel()}:generateContent`, {
+  const res = await llmFetch(`${groundingBaseUrl()}/models/${groundingModel()}:generateContent`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
     body: JSON.stringify(body),
@@ -255,7 +274,7 @@ async function completeAnthropic(
   model: string,
   opts: CompleteOptions
 ): Promise<string> {
-  const res = await fetch(`${root}/v1/messages`, {
+  const res = await llmFetch(`${root}/v1/messages`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -314,7 +333,7 @@ async function completeOpenAI(
     ? [{ role: "system" as const, content: systemText }, ...opts.messages]
     : opts.messages;
 
-  const res = await fetch(`${root}/v1/chat/completions`, {
+  const res = await llmFetch(`${root}/v1/chat/completions`, {
     method: "POST",
     headers: {
       "content-type": "application/json",

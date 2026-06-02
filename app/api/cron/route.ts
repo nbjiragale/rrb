@@ -10,6 +10,7 @@ import { autoReplenishQuestions } from "@/lib/services/generation";
 import { ingestFromSources } from "@/lib/services/caScraper";
 import { ingestFromGemini } from "@/lib/services/caGemini";
 import { recordDailySnapshots } from "@/lib/services/snapshots";
+import { checkBearer } from "@/lib/http/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -24,11 +25,12 @@ export const dynamic = "force-dynamic";
 // Every step is isolated: a failure is recorded and the batch continues, so one
 // flaky LLM call can't starve later steps (notably the plan, which runs last).
 // Order still matters for freshness — profile reads calibration + diagnoses.
-// Protected by CRON_SECRET when set.
+// Requires CRON_SECRET (fails closed when unset — Vercel Cron sends it as the
+// Authorization bearer automatically). This endpoint runs billed LLM jobs.
 export async function GET(req: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (secret && req.headers.get("authorization") !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const auth = checkBearer(req, "CRON_SECRET");
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.reason }, { status: 401 });
   }
 
   const errors: { step: string; message: string }[] = [];

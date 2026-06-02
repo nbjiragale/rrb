@@ -1,4 +1,5 @@
 import { Pool, types, type PoolClient } from "pg";
+import { requireEnv } from "@/lib/env";
 
 // Return Postgres DATE (oid 1082) as the raw YYYY-MM-DD string instead of a
 // JS Date. The schema types in lib/db/types.ts declare date columns as
@@ -18,14 +19,23 @@ declare global {
   var __pgPool: Pool | undefined;
 }
 
-const pool =
-  global.__pgPool ??
-  new Pool({
-    connectionString: process.env.DATABASE_URL,
-    max: 5,
-  });
+// Lazy so `next build` (which imports server modules without a live DB) doesn't
+// trip the DATABASE_URL check; the first actual query fails fast with a clear
+// message instead of an opaque ECONNREFUSED to Postgres' default localhost.
+function getPool(): Pool {
+  if (global.__pgPool) return global.__pgPool;
+  const created = new Pool({ connectionString: requireEnv("DATABASE_URL"), max: 5 });
+  global.__pgPool = created;
+  return created;
+}
 
-if (process.env.NODE_ENV !== "production") global.__pgPool = pool;
+const pool = new Proxy({} as Pool, {
+  get(_t, prop) {
+    const p = getPool();
+    const v = p[prop as keyof Pool];
+    return typeof v === "function" ? v.bind(p) : v;
+  },
+});
 
 // Anything with `.query` — the pool, or a client inside a transaction.
 export type Executor = Pick<Pool, "query"> | Pick<PoolClient, "query">;
