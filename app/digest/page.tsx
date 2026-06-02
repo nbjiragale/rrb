@@ -21,13 +21,37 @@ export default async function DigestPage() {
   }
 
   const groups = groupByCategory(items);
+  const highYield = items.filter((it) => (it.exam_probability ?? 0) >= 0.75).length;
 
   return (
     <div className="mx-auto max-w-column px-6 py-8 md:px-8">
-      <h1 className="text-h1 mb-1">Daily digest</h1>
-      <p className="text-secondary text-small mb-6 font-mono">{digestDate}</p>
-      <DigestPlayer groups={groups} />
+      <header className="mb-6">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h1 className="text-h1">Daily digest</h1>
+          <span className="font-mono text-small text-muted">{digestDate}</span>
+        </div>
+        <p className="mt-1 text-body text-secondary">
+          Current affairs ranked by how likely each item is to appear in the exam.
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-small text-muted">
+          <Stat value={items.length} label={items.length === 1 ? "item" : "items"} />
+          <span aria-hidden>·</span>
+          <Stat value={highYield} label="high-yield" />
+          <span aria-hidden>·</span>
+          <Stat value={groups.length} label={groups.length === 1 ? "topic" : "topics"} />
+        </div>
+      </header>
+
+      <DigestPlayer groups={groups} totalItems={items.length} />
     </div>
+  );
+}
+
+function Stat({ value, label }: { value: number; label: string }) {
+  return (
+    <span>
+      <span className="font-mono text-primary">{value}</span> {label}
+    </span>
   );
 }
 
