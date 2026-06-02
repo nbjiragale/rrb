@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { importTestbookMock } from "@/lib/services/testbookImport";
+import { checkBearer } from "@/lib/http/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -8,10 +9,11 @@ export const dynamic = "force-dynamic";
 // called cross-origin from an extension, so the browser-side capture POSTs here).
 // Same import path as the paste UI — just fed the raw payload automatically.
 //
-// Auth: when TESTBOOK_IMPORT_TOKEN is set, a matching Bearer token is required;
-// unset means open (single-user localhost convenience, Hard Rule §5). The route
-// is permissive on CORS because the caller is the user's own extension on their
-// own machine, and the token (when set) is the real gate.
+// Auth: TESTBOOK_IMPORT_TOKEN is REQUIRED — the route fails closed when unset so
+// a forged cross-origin payload can't poison the learner model (this writes
+// attempts + BKT mastery). Set it in the app env and the extension popup. CORS
+// stays permissive because the caller is the user's own extension (its origin is
+// the dynamic chrome-extension:// id); the bearer token is the real gate.
 
 const bodySchema = z
   .object({
@@ -38,9 +40,9 @@ export function OPTIONS() {
 }
 
 export async function POST(req: Request) {
-  const token = process.env.TESTBOOK_IMPORT_TOKEN;
-  if (token && req.headers.get("authorization") !== `Bearer ${token}`) {
-    return json({ error: "unauthorized" }, 401);
+  const auth = checkBearer(req, "TESTBOOK_IMPORT_TOKEN");
+  if (!auth.ok) {
+    return json({ error: auth.reason }, 401);
   }
 
   let parsed;

@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { ingestFromSourcesEvents } from "@/lib/services/caScraper";
+import { requireSameOrigin } from "@/lib/http/auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -11,6 +12,16 @@ export const fetchCache = "force-no-store";
 // source is scraped, split, and ingested. The cron job uses the Promise
 // wrapper in @/lib/services/caScraper and doesn't hit this route.
 export async function POST(req: Request) {
+  // Same-origin only: this triggers billed Firecrawl/LLM work and is driven by
+  // the in-app button. Reject cross-site callers (Hard Rule §4 cost discipline).
+  const auth = requireSameOrigin(req);
+  if (!auth.ok) {
+    return new Response(JSON.stringify({ error: auth.reason }), {
+      status: 403,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream<Uint8Array>({

@@ -23,6 +23,16 @@ test("P(known) stays within [0, 1]", () => {
   }
 });
 
+test("out-of-range or non-finite p_known is clamped into (0,1)", () => {
+  // A stray bad value must not propagate and compound into concept_mastery.
+  for (const bad of [-0.5, 1.5, 2, -1, NaN, Infinity, -Infinity]) {
+    for (const correct of [true, false]) {
+      const next = bktUpdate(bad, correct);
+      assert.ok(next > 0 && next < 1, `not clamped: ${next} from ${bad}`);
+    }
+  }
+});
+
 test("predictCorrect respects slip/guess bounds", () => {
   assert.equal(predictCorrect(1), 1 - DEFAULT_BKT.pS);
   assert.equal(predictCorrect(0), DEFAULT_BKT.pG);

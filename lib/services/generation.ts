@@ -18,6 +18,7 @@ import {
   type VerifyResult,
 } from "@/lib/llm/verify";
 import { genTokens } from "@/lib/config";
+import { numEnv } from "@/lib/env";
 import { getConcept } from "@/lib/db/queries/concepts";
 import {
   createGeneratedQuestion,
@@ -304,9 +305,9 @@ async function recoverGaSource(questionId: number): Promise<string | null> {
 }
 
 // Per-night caps for auto-replenishment (Hard Rule §4). Env-tunable; 0 disables.
-const QGEN_MAX_CONCEPTS = Number(process.env.QGEN_MAX_CONCEPTS ?? 3);
-const QGEN_PER_CONCEPT = Number(process.env.QGEN_PER_CONCEPT ?? 3);
-const QGEN_MIN_VERIFIED = Number(process.env.QGEN_MIN_VERIFIED ?? 5);
+const QGEN_MAX_CONCEPTS = numEnv("QGEN_MAX_CONCEPTS", 3);
+const QGEN_PER_CONCEPT = numEnv("QGEN_PER_CONCEPT", 3);
+const QGEN_MIN_VERIFIED = numEnv("QGEN_MIN_VERIFIED", 5);
 
 // Nightly: keep Practice stocked by topping up verified math/reasoning questions
 // for the weakest, highest-yield concepts that are running low (GA is excluded —
