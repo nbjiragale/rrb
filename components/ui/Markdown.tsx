@@ -1,5 +1,8 @@
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 
 // Renderer for LLM-produced markdown (tutor answers, explanations, Feynman
 // feedback). Styled to the design system: weights ≤600, hairline dividers,
@@ -125,11 +128,26 @@ const components: Components = {
   ),
 };
 
+// LLMs emit math with TeX delimiters \( … \) (inline) and \[ … \] (display), but
+// remark-math only recognises $ … $ / $$ … $$. Without this, the backslash-paren
+// is consumed as a markdown escape and the raw LaTeX (\frac, \text, …) leaks
+// through as plain text. Normalise both forms to dollar delimiters before
+// parsing so the math actually renders.
+function normalizeMath(src: string): string {
+  return src
+    .replace(/\\\[([\s\S]+?)\\\]/g, (_, body) => `\n\n$$${body}$$\n\n`)
+    .replace(/\\\(([\s\S]+?)\\\)/g, (_, body) => `$${body}$`);
+}
+
 export function Markdown({ children }: { children: string }) {
   return (
     <div className="space-y-0">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
-        {children}
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
+        components={components}
+      >
+        {normalizeMath(children)}
       </ReactMarkdown>
     </div>
   );

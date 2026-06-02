@@ -31,6 +31,7 @@ export function buildTutorSystemPrompt(): string {
     "Lean on what the learner already knows and directly address the specific recent mistakes listed.",
     "If a listed prerequisite is weak and relevant to the question, point the learner to that foundational gap first rather than only answering the surface question.",
     "Ground general-awareness facts in well-established knowledge; if you are unsure of a fact, say so plainly rather than guessing.",
+    "Write any mathematics in LaTeX: wrap inline math in $…$ and display equations in $$…$$ (e.g. $\\frac{15}{100}\\times200=30$). Never leave raw LaTeX commands like \\frac outside math delimiters.",
   ].join(" ");
 }
 
