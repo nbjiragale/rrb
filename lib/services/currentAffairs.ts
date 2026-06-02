@@ -4,6 +4,8 @@ import { parseJson } from "@/lib/llm/json";
 import {
   buildCaCardSystemPrompt,
   buildCaCardUserPrompt,
+  buildCaDayCardSystemPrompt,
+  buildCaDayCardUserPrompt,
   buildCaSummarySystemPrompt,
   buildCaSummaryUserPrompt,
 } from "@/lib/llm/prompts/generate";
@@ -12,6 +14,7 @@ import { genTokens } from "@/lib/config";
 import { numEnv } from "@/lib/env";
 import {
   getCaItem,
+  getCaItemsByDate,
   markCaProcessed,
   setCaSummary,
   getUnsummarizedCaItems,
@@ -118,6 +121,94 @@ export async function generateCaCards(input: {
     unmapped,
     cardIds,
   };
+}
+
+const dayCardsSchema = z.array(
+  z.object({
+    source_id: z.coerce.number().int(),
+    front: z.string().min(1),
+    back: z.string().min(1),
+    concept: z.string().min(1).optional().nullable(),
+  })
+);
+
+// H2 (per-day) — build grounded SRS cards from ALL of a day's current-affairs
+// items in one LLM pass, so the model dedupes and prioritises across them rather
+// than one item at a time. Each card is verified against the SINGLE source item
+// it claims (source_id), keeping strict per-item grounding (Hard Rule §2.1) and
+// ca:<id> provenance. Candidates tagged with an unknown source id are dropped
+// (fail closed — we can't ground them).
+export async function generateCaDayCards(input: {
+  date: string;
+  gaConcepts: Concept[];
+  count: number;
+}): Promise<CaCardReport> {
+  if (input.gaConcepts.length === 0) {
+    throw new Error("No GA concepts available — add at least one GA concept first.");
+  }
+  const items = await getCaItemsByDate(input.date);
+  const sources = items.filter((it) => it.raw_text?.trim());
+  if (sources.length === 0) throw new Error("No current-affairs source text for this day.");
+
+  const raw = await complete({
+    system: buildCaDayCardSystemPrompt(),
+    messages: [
+      {
+        role: "user",
+        content: buildCaDayCardUserPrompt({
+          sources: sources.map((s) => ({ id: s.id, text: s.raw_text })),
+          count: input.count,
+          gaConcepts: input.gaConcepts.map((c) => c.name),
+        }),
+      },
+    ],
+    task: "generate",
+    maxTokens: genTokens(input.count),
+    reasoning: { enabled: false },
+  });
+
+  const candidates = parseJson(raw, dayCardsSchema);
+  const byId = new Map(sources.map((s) => [s.id, s]));
+
+  // Group candidates by their claimed source so we can verify each batch against
+  // exactly that item's raw_text. Unknown source ids can't be grounded → dropped.
+  const grouped = new Map<number, typeof candidates>();
+  let unmapped = 0;
+  for (const c of candidates) {
+    if (!byId.has(c.source_id)) {
+      unmapped++;
+      continue;
+    }
+    const g = grouped.get(c.source_id) ?? [];
+    g.push(c);
+    grouped.set(c.source_id, g);
+  }
+
+  const cardIds: number[] = [];
+  for (const [sid, group] of grouped) {
+    const item = byId.get(sid)!;
+    const grounded = await verifyGroundedCards(group, item.raw_text);
+    const conceptByPair = new Map(group.map((c) => [`${c.front}|${c.back}`, c.concept ?? null]));
+    for (const c of grounded) {
+      const conceptId = resolveConceptId(conceptByPair.get(`${c.front}|${c.back}`), input.gaConcepts);
+      if (conceptId === null) {
+        unmapped++;
+        continue;
+      }
+      const card = await createCard({
+        concept_id: conceptId,
+        front: c.front,
+        back: c.back,
+        card_type: "recall",
+        source_ref: `ca:${sid}`,
+      });
+      cardIds.push(card.id);
+    }
+  }
+
+  for (const it of items) await markCaProcessed(it.id);
+
+  return { generated: candidates.length, grounded: cardIds.length, unmapped, cardIds };
 }
 
 // H3 — one-sentence grounded summary for the digest.

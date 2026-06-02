@@ -6,8 +6,8 @@ import { isLlmConfigured } from "@/lib/llm/router";
 import { caExamProbability } from "@/lib/caRanking";
 import { insertCaItem } from "@/lib/db/queries/currentAffairs";
 import { listConcepts } from "@/lib/db/queries/concepts";
-import { generateCaCards } from "@/lib/services/currentAffairs";
-import { generateCaGaQuestions } from "@/lib/services/generation";
+import { generateCaDayCards } from "@/lib/services/currentAffairs";
+import { generateCaDayGaQuestions } from "@/lib/services/generation";
 
 export type CaState = { ok: boolean; message: string };
 
@@ -41,9 +41,9 @@ export async function ingestCaAction(_prev: CaState, formData: FormData): Promis
   return { ok: true, message: `Ingested item #${item.id}.` };
 }
 
-const genSchema = z.object({
-  caId: z.coerce.number().int().positive(),
-  count: z.coerce.number().int().min(1).max(10).default(5),
+const dayGenSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD"),
+  count: z.coerce.number().int().min(1).max(20).default(8),
 });
 
 async function loadGaConcepts() {
@@ -57,17 +57,18 @@ function unmappedNote(unmapped: number): string {
     : "";
 }
 
-// H2 — build grounded SRS cards from a CA item's raw_text. The LLM tags each
-// card with its best-fit GA concept; we route per card instead of bulk-assigning.
-export async function generateCaCardsAction(input: {
-  caId: number;
+// H2 — build grounded SRS cards from ALL of a day's current-affairs items in one
+// pass: the model dedupes and prioritises across them, while each card stays
+// grounded in a single source item (ca:<id>).
+export async function generateCaDayCardsAction(input: {
+  date: string;
   count?: number;
 }): Promise<CaState> {
-  const d = genSchema.parse(input);
+  const d = dayGenSchema.parse(input);
   if (!isLlmConfigured()) return { ok: false, message: "LLM not configured." };
   try {
     const gaConcepts = await loadGaConcepts();
-    const r = await generateCaCards({ caId: d.caId, gaConcepts, count: d.count });
+    const r = await generateCaDayCards({ date: d.date, gaConcepts, count: d.count });
     revalidatePath("/cards");
     revalidatePath("/current-affairs");
     return {
@@ -75,24 +76,25 @@ export async function generateCaCardsAction(input: {
       message:
         r.grounded > 0
           ? `Added ${r.grounded} grounded card(s) to review.${unmappedNote(r.unmapped)}`
-          : `No grounded cards could be built from this source.${unmappedNote(r.unmapped)}`,
+          : `No grounded cards could be built from this day's sources.${unmappedNote(r.unmapped)}`,
     };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : "Card generation failed." };
   }
 }
 
-// C4 — build grounded GA questions from a CA item's raw_text, each tagged with
-// its own GA concept. gen_source = ca:<id>.
-export async function generateCaQuestionsAction(input: {
-  caId: number;
+// C4 — build grounded GA questions from ALL of a day's current-affairs items in
+// one pass, deduped and prioritised across them; each question stays grounded in
+// a single source item. gen_source = ca:<id>.
+export async function generateCaDayQuestionsAction(input: {
+  date: string;
   count?: number;
 }): Promise<CaState> {
-  const d = genSchema.parse(input);
+  const d = dayGenSchema.parse(input);
   if (!isLlmConfigured()) return { ok: false, message: "LLM not configured." };
   try {
     const gaConcepts = await loadGaConcepts();
-    const r = await generateCaGaQuestions({ caId: d.caId, gaConcepts, count: d.count });
+    const r = await generateCaDayGaQuestions({ date: d.date, gaConcepts, count: d.count });
     revalidatePath("/practice");
     return {
       ok: r.verified > 0,

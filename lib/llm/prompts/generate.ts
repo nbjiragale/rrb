@@ -124,17 +124,65 @@ export function buildCaCardUserPrompt(input: {
   ].join("\n");
 }
 
-// C4 (CA-driven) — GA questions from a CA source, each tagged to the GA concept
-// it actually tests. Distinct from the passage-driven prompt because that flow
-// pre-binds one concept upfront.
-export function buildCaGaQuestionSystemPrompt(): string {
+// One labelled current-affairs source for a per-day build.
+export interface CaDaySource {
+  id: number;
+  text: string;
+}
+
+function renderCaDaySources(sources: CaDaySource[]): string {
+  return sources
+    .map((s) => [`[SOURCE ${s.id}]`, '"""', s.text, '"""'].join("\n"))
+    .join("\n\n");
+}
+
+// H2 (per-day) — build cards from a whole day's current-affairs items in one
+// pass, so the model dedupes and picks the most exam-relevant facts across all
+// of them instead of one item at a time. Each card stays grounded in exactly one
+// SOURCE and is tagged with that SOURCE's id, so provenance (ca:<id>) survives.
+export function buildCaDayCardSystemPrompt(): string {
+  return [
+    "You write spaced-repetition flashcards from a day's current-affairs items for an RRB NTPC aspirant.",
+    "You are given several numbered SOURCE items. Across ALL of them, select the most exam-relevant facts and avoid duplicates (if two SOURCES cover the same fact, keep one card).",
+    "CRITICAL: Each card must use ONLY facts stated in a SINGLE SOURCE. Do not combine facts across SOURCES and do not add outside knowledge.",
+    "Each card is one exam-relevant fact: a short front (cue/question) and a short back (answer), both traceable to that one SOURCE.",
+    "Tag every card with the id of the SOURCE it came from, and with the single best-fit GA concept from the CONCEPTS list (use the exact concept name). If no concept fits a fact, omit that card.",
+    "Return ONLY a JSON array of objects with keys:",
+    '- "source_id": the integer id of the SOURCE this card is grounded in',
+    '- "front": the cue/question',
+    '- "back": the answer',
+    '- "concept": the exact concept name from CONCEPTS',
+    "Return [] if there is no exam-relevant fact. No prose outside the JSON.",
+  ].join("\n");
+}
+
+export function buildCaDayCardUserPrompt(input: {
+  sources: CaDaySource[];
+  count: number;
+  gaConcepts: string[];
+}): string {
+  return [
+    `Generate up to ${input.count} flashcard(s) total across the SOURCES below, best and most exam-relevant first, no duplicates.`,
+    "CONCEPTS (pick exactly one per card):",
+    input.gaConcepts.map((c) => `- ${c}`).join("\n"),
+    "SOURCES:",
+    renderCaDaySources(input.sources),
+  ].join("\n");
+}
+
+// C4 (CA-driven, per-day) — GA questions from a whole day's current-affairs
+// items in one pass: the model dedupes and prioritises across all SOURCES, but
+// each question stays grounded in a SINGLE SOURCE and is tagged with that
+// SOURCE's id so provenance (ca:<id>) — and adversarial re-grounding — survives.
+export function buildCaDayGaQuestionSystemPrompt(): string {
   return [
     "You are an item writer for the General Awareness section of India's RRB NTPC exam.",
-    "CRITICAL: Use ONLY facts stated in the SOURCE passage. Do not add any fact from your own knowledge.",
-    "Every option — correct and distractors — must be checkable against the SOURCE. If the SOURCE lacks enough material, return [].",
-    "Exactly one correct option; the other three must be wrong per the SOURCE but plausible.",
-    "Tag every question with the single best-fit GA concept from the CONCEPTS list — use the exact concept name. If no concept fits, omit that question.",
+    "You are given several numbered SOURCE items from one day. Across ALL of them, write the most exam-relevant MCQs and avoid duplicates (don't ask the same fact twice).",
+    "CRITICAL: Each question must use ONLY facts stated in a SINGLE SOURCE. Do not combine facts across SOURCES and do not add any fact from your own knowledge.",
+    "Every option — correct and distractors — must be checkable against that one SOURCE. Exactly one correct option; the other three wrong per the SOURCE but plausible.",
+    "Tag every question with the id of the SOURCE it is grounded in, and with the single best-fit GA concept from the CONCEPTS list (exact name). If no concept fits, omit that question.",
     "Return ONLY a JSON array of objects with keys:",
+    '- "source_id": the integer id of the SOURCE this question is grounded in',
     '- "stem": the question text',
     '- "options": array of exactly 4 distinct answer strings',
     '- "correct_option": integer index 0..3 of the correct option',
@@ -144,19 +192,17 @@ export function buildCaGaQuestionSystemPrompt(): string {
   ].join("\n");
 }
 
-export function buildCaGaQuestionUserPrompt(input: {
-  sourceText: string;
+export function buildCaDayGaQuestionUserPrompt(input: {
+  sources: CaDaySource[];
   count: number;
   gaConcepts: string[];
 }): string {
   return [
-    `Generate up to ${input.count} MCQ(s) grounded entirely in this SOURCE.`,
+    `Generate up to ${input.count} MCQ(s) total across the SOURCES below, most exam-relevant first, no duplicates.`,
     "CONCEPTS (pick exactly one per question):",
     input.gaConcepts.map((c) => `- ${c}`).join("\n"),
-    "SOURCE:",
-    '"""',
-    input.sourceText,
-    '"""',
+    "SOURCES:",
+    renderCaDaySources(input.sources),
   ].join("\n");
 }
 
