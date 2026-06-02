@@ -6,8 +6,8 @@ import {
   buildMathUserPrompt,
   buildGaSystemPrompt,
   buildGaUserPrompt,
-  buildCaGaQuestionSystemPrompt,
-  buildCaGaQuestionUserPrompt,
+  buildCaDayGaQuestionSystemPrompt,
+  buildCaDayGaQuestionUserPrompt,
   buildAdversarialSystemPrompt,
   buildAdversarialUserPrompt,
 } from "@/lib/llm/prompts/generate";
@@ -27,7 +27,7 @@ import {
 } from "@/lib/db/queries/questions";
 import { getAttemptForDiagnosis } from "@/lib/db/queries/attempts";
 import { getMisconceptionForAttempt } from "@/lib/db/queries/misconceptions";
-import { getCaItem } from "@/lib/db/queries/currentAffairs";
+import { getCaItem, getCaItemsByDate } from "@/lib/db/queries/currentAffairs";
 import { diagnoseAttempt } from "@/lib/services/diagnosis";
 import type { Concept } from "@/lib/db/types";
 
@@ -141,8 +141,9 @@ export async function generateGaQuestions(input: {
 // one news item often tests multiple GA topics; the LLM picks the best-fit
 // concept per question from the supplied list. Questions whose concept tag
 // doesn't map are skipped (no inventing concepts to avoid miscategorisation).
-const caGaCandidatesSchema = z.array(
+const caDayGaCandidatesSchema = z.array(
   z.object({
+    source_id: z.coerce.number().int(),
     stem: z.string().min(1),
     options: z.array(z.string()).length(4),
     correct_option: z.number().int().min(0).max(3),
@@ -155,27 +156,33 @@ export interface CaGaQuestionReport extends GenerationReport {
   unmapped: number;
 }
 
-export async function generateCaGaQuestions(input: {
-  caId: number;
+// C4 (per-day) — build grounded GA questions from ALL of a day's current-affairs
+// items in one LLM pass, so the model dedupes and prioritises across them. Each
+// question is verified against the SINGLE source item it claims (source_id) and
+// persisted with gen_source = ca:<id>, preserving strict grounding (Hard Rule
+// §2.1) and the lineage adversarial generation depends on. A candidate tagged
+// with an unknown source id can't be grounded and is dropped (fail closed).
+export async function generateCaDayGaQuestions(input: {
+  date: string;
   gaConcepts: Concept[];
   count: number;
 }): Promise<CaGaQuestionReport> {
   if (input.gaConcepts.length === 0) {
     throw new Error("No GA concepts available — add at least one GA concept first.");
   }
-  const ca = await getCaItem(input.caId);
-  if (!ca) throw new Error(`Current-affairs item ${input.caId} not found`);
-  if (!ca.raw_text?.trim()) {
+  const items = await getCaItemsByDate(input.date);
+  const sources = items.filter((it) => it.raw_text?.trim());
+  if (sources.length === 0) {
     throw new Error("GA generation requires source text — ungrounded GA is not allowed.");
   }
 
   const raw = await complete({
-    system: buildCaGaQuestionSystemPrompt(),
+    system: buildCaDayGaQuestionSystemPrompt(),
     messages: [
       {
         role: "user",
-        content: buildCaGaQuestionUserPrompt({
-          sourceText: ca.raw_text,
+        content: buildCaDayGaQuestionUserPrompt({
+          sources: sources.map((s) => ({ id: s.id, text: s.raw_text })),
           count: input.count,
           gaConcepts: input.gaConcepts.map((c) => c.name),
         }),
@@ -186,7 +193,7 @@ export async function generateCaGaQuestions(input: {
     reasoning: { enabled: false },
   });
 
-  const candidates = parseJson(raw, caGaCandidatesSchema);
+  const candidates = parseJson(raw, caDayGaCandidatesSchema);
   const report: CaGaQuestionReport = {
     generated: candidates.length,
     verified: 0,
@@ -195,15 +202,21 @@ export async function generateCaGaQuestions(input: {
     unmapped: 0,
   };
 
+  const byId = new Map(sources.map((s) => [s.id, s]));
   const byName = new Map(input.gaConcepts.map((c) => [c.name.trim().toLowerCase(), c.id]));
 
   for (const c of candidates) {
+    const item = byId.get(c.source_id);
+    if (!item) {
+      report.unmapped++; // unknown source — can't ground, drop
+      continue;
+    }
     const conceptId = c.concept ? byName.get(c.concept.trim().toLowerCase()) ?? null : null;
     if (conceptId === null) {
       report.unmapped++;
       continue;
     }
-    const result = await verifyGaQuestion(c, ca.raw_text);
+    const result = await verifyGaQuestion(c, item.raw_text);
     if (!result.ok) {
       report.rejected.push({ stem: c.stem.slice(0, 80), reason: result.reason });
       continue;
@@ -215,7 +228,7 @@ export async function generateCaGaQuestions(input: {
       correct_option: c.correct_option,
       explanation: c.explanation ?? null,
       source: "ai_generated",
-      gen_source: `ca:${ca.id}`,
+      gen_source: `ca:${item.id}`,
       is_adversarial: false,
       parent_question_id: null,
       difficulty: null,

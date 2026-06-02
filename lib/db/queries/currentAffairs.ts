@@ -79,6 +79,17 @@ export async function listCaItems(limit = 50): Promise<CurrentAffairsItem[]> {
   );
 }
 
+// All items ingested for one day, highest exam-likelihood first — the source set
+// a per-day card/question build grounds in (H2 / C4).
+export async function getCaItemsByDate(date: string): Promise<CurrentAffairsItem[]> {
+  return query<CurrentAffairsItem>(
+    `SELECT * FROM current_affairs_item
+     WHERE ca_date = $1
+     ORDER BY exam_probability DESC NULLS LAST, id DESC`,
+    [date]
+  );
+}
+
 // Stamp the item once cards/questions have been built from it (provenance only;
 // re-generation is allowed — the stamp is informational).
 export async function markCaProcessed(id: number, summary?: string | null): Promise<void> {
