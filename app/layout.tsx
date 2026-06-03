@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AppShell } from "@/components/AppShell";
+import { FocusProvider } from "@/components/FocusContext";
 
 export const metadata: Metadata = {
   title: "RRB NTPC — Personal Learning Platform",
@@ -19,7 +20,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className="bg-canvas text-primary">
-        <AppShell>{children}</AppShell>
+        <FocusProvider>
+          <AppShell>{children}</AppShell>
+        </FocusProvider>
       </body>
     </html>
   );

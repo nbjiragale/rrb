@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { startMockAction } from "@/app/mock/actions";
 import { MockRunner } from "@/components/mock/MockRunner";
 import { MockResult } from "@/components/mock/MockResult";
@@ -56,24 +57,22 @@ export function MockLauncher() {
   }
 
   if (phase.name === "running") {
-    // Genuine full-screen: a fixed overlay above the sidebar (z-0) and the
-    // mobile tab bar (z-10) so the exam takes over the whole viewport.
+    // The runner requests focus mode (useFocusMode), so the AppShell drops the
+    // rail, section tabs, and mobile bar — the exam owns the viewport.
     return (
-      <div className="fixed inset-0 z-50 overflow-y-auto bg-canvas">
-        <MockRunner
-          started={phase.started}
-          startedAt={phase.startedAt}
-          onDone={(analysis) => {
-            try {
-              window.localStorage.removeItem(`mock:run:${phase.started.sessionId}`);
-            } catch {
-              // ignore
-            }
-            setPhase({ name: "done", analysis });
-          }}
-          onQuit={quitToChoose}
-        />
-      </div>
+      <MockRunner
+        started={phase.started}
+        startedAt={phase.startedAt}
+        onDone={(analysis) => {
+          try {
+            window.localStorage.removeItem(`mock:run:${phase.started.sessionId}`);
+          } catch {
+            // ignore
+          }
+          setPhase({ name: "done", analysis });
+        }}
+        onQuit={quitToChoose}
+      />
     );
   }
 
@@ -82,13 +81,10 @@ export function MockLauncher() {
   }
 
   return (
-    <div className="mx-auto max-w-column px-6 py-8 md:px-8">
-      <h1 className="text-h1 mb-2">Mock tests</h1>
-      <p className="text-secondary text-body mb-6">
-        Exam conditions: a running timer, first-class skipping, real negative marking.
-      </p>
-
-      <Card className="p-6 mb-6">
+    <>
+      <PageHeader title="Mocks" width="column" />
+      <div className="mx-auto max-w-column px-6 py-8 md:px-8">
+        <Card className="p-6 mb-6">
         <h2 className="text-h3 mb-1">Full mock</h2>
         <p className="text-small text-muted mb-4">All sections per your exam config.</p>
         <Button disabled={loading} onClick={() => start({ type: "full_cbt1" })}>
@@ -113,16 +109,17 @@ export function MockLauncher() {
         </div>
       </Card>
 
-      {error && (
-        <div className="mt-4">
-          <p className="text-small text-danger">{error}</p>
-          {error.toLowerCase().includes("configure the exam") && (
-            <Link href="/exam" className="text-small text-accent-strong underline">
-              Set up your exam →
-            </Link>
-          )}
-        </div>
-      )}
-    </div>
+        {error && (
+          <div className="mt-4">
+            <p className="text-small text-danger">{error}</p>
+            {error.toLowerCase().includes("configure the exam") && (
+              <Link href="/exam" className="text-small text-accent-strong underline">
+                Set up your exam →
+              </Link>
+            )}
+          </div>
+        )}
+      </div>
+    </>
   );
 }

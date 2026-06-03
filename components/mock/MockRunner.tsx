@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { submitMockAction } from "@/app/mock/actions";
+import { useFocusMode } from "@/components/FocusContext";
 import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
 import type { StartedMock } from "@/lib/services/mock";
 import type { MockAnalysis } from "@/lib/services/mock";
@@ -41,6 +42,9 @@ export function MockRunner({
   onQuit?: () => void;
 }) {
   const { questions, timeLimitS } = started;
+
+  // Drop the app chrome for the duration of the exam (UIredesignspec §10.4).
+  useFocusMode(true);
 
   const [run, setRun] = useLocalStorage<RunState>(`mock:run:${started.sessionId}`, {
     current: 0,
@@ -112,6 +116,27 @@ export function MockRunner({
   const timerTone =
     remaining < 60 ? "text-danger" : remaining < 300 ? "text-warning" : "text-primary";
 
+  // Exam keyboard: A–D select/clear, ←/→ navigate (UIredesignspec §12).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey || submitted) return;
+      const optIndex = { a: 0, b: 1, c: 2, d: 3 }[e.key.toLowerCase()];
+      if (optIndex !== undefined && optIndex < q.options.length) {
+        e.preventDefault();
+        choose(optIndex);
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        goTo(Math.max(0, current - 1));
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        goTo(Math.min(questions.length - 1, current + 1));
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current, q, questions.length, submitted]);
+
   return (
     <div className="mx-auto max-w-column px-6 py-6">
       {/* Sticky exam bar */}
@@ -168,13 +193,16 @@ export function MockRunner({
           <button
             key={i}
             onClick={() => choose(i)}
-            className={`w-full rounded-md border p-4 text-left text-body transition-colors duration-150 ${
+            className={`flex w-full items-start gap-3 rounded-md border p-4 text-left text-body transition-colors duration-150 ${
               answers[current] === i
                 ? "border-accent bg-accent-subtle"
                 : "border-border bg-surface hover:bg-hover"
             }`}
           >
-            {opt}
+            <span className="mt-0.5 font-mono text-caption text-muted">
+              {String.fromCharCode(65 + i)}
+            </span>
+            <span className="whitespace-pre-wrap">{opt}</span>
           </button>
         ))}
       </div>
