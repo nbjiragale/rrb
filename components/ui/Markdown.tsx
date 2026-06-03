@@ -2,9 +2,8 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-// KaTeX stylesheet is loaded globally in app/layout.tsx — vendor global CSS
-// belongs in the root layout, not a client-component module (Turbopack rejects
-// the latter as a non-module global import).
+// KaTeX styles are self-hosted in public/katex and linked from app/layout.tsx,
+// so math rendering never depends on the bundler resolving the npm package.
 
 // Renderer for LLM-produced markdown (tutor answers, explanations, Feynman
 // feedback). Styled to the design system: weights ≤600, hairline dividers,
