@@ -12,12 +12,16 @@ const tones: Record<Tone, string> = {
 
 interface Props extends HTMLAttributes<HTMLSpanElement> {
   tone?: Tone;
+  /** Uppercase tag styling (default). Set false for sentence-case labels. */
+  uppercase?: boolean;
 }
 
-export function Badge({ tone = "neutral", className = "", ...props }: Props) {
+export function Badge({ tone = "neutral", uppercase = true, className = "", ...props }: Props) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-caption uppercase tracking-[0.02em] ${tones[tone]} ${className}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-caption ${
+        uppercase ? "uppercase tracking-[0.02em]" : ""
+      } ${tones[tone]} ${className}`}
       {...props}
     />
   );
