@@ -3,6 +3,7 @@ import { listConcepts } from "@/lib/db/queries/concepts";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { generatePlan } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -12,29 +13,31 @@ export default async function PlannerPage() {
   const nameById = new Map(concepts.map((c) => [c.id, c.name]));
 
   return (
-    <div className="mx-auto max-w-column px-6 py-8 md:px-8">
-      <h1 className="text-h1 mb-2">Study plan</h1>
-      <p className="text-secondary text-body mb-6">
-        What to learn next, by priority — high-yield, weak concepts first, respecting prerequisites.
-      </p>
+    <>
+      <PageHeader
+        title="Planner"
+        width="column"
+        action={
+          <form action={generatePlan}>
+            <input type="hidden" name="lowEnergy" value="0" />
+            <Button type="submit">Generate plan</Button>
+          </form>
+        }
+      />
+      <div className="mx-auto max-w-column px-6 py-8 md:px-8">
+        <div className="mb-8 flex flex-wrap gap-3">
+          <form action={generatePlan}>
+            <input type="hidden" name="lowEnergy" value="1" />
+            <Button type="submit" variant="secondary">
+              Low-energy day → reviews only
+            </Button>
+          </form>
+        </div>
 
-      <div className="mb-8 flex flex-wrap gap-3">
-        <form action={generatePlan}>
-          <input type="hidden" name="lowEnergy" value="0" />
-          <Button type="submit">Generate today&apos;s plan</Button>
-        </form>
-        <form action={generatePlan}>
-          <input type="hidden" name="lowEnergy" value="1" />
-          <Button type="submit" variant="secondary">
-            Low-energy day
-          </Button>
-        </form>
-      </div>
-
-      {!plan ? (
-        <p className="text-secondary text-body-lg">No plan yet. Generate one above.</p>
-      ) : (
-        <div className="grid gap-4">
+        {!plan ? (
+          <p className="text-secondary text-body-lg">No plan yet. Generate one above.</p>
+        ) : (
+          <div className="grid gap-4">
           <Card className="p-5 flex items-center justify-between gap-4">
             <div>
               <p className="text-caption uppercase tracking-[0.02em] text-muted">{plan.plan_date}</p>
@@ -64,9 +67,10 @@ export default async function PlannerPage() {
                 </div>
               ))}
             </Card>
-          )}
-        </div>
-      )}
-    </div>
+            )}
+          </div>
+        )}
+      </div>
+    </>
   );
 }

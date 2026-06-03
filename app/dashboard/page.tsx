@@ -1,4 +1,6 @@
 import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { ReadinessCard } from "@/components/dashboard/ReadinessCard";
 import { MasteryHeatmap } from "@/components/dashboard/MasteryHeatmap";
 import { CoverageBars } from "@/components/dashboard/CoverageBars";
@@ -55,20 +57,29 @@ export default async function DashboardPage() {
   const hasData = heatmap.length > 0;
 
   return (
-    <div className="mx-auto max-w-shell px-6 py-8 md:px-8">
-      <h1 className="text-h1 mb-1">Dashboard</h1>
-      <p className="text-secondary text-small mb-6">
-        Where you stand, how you&apos;re trending, and how ready you are — with honest uncertainty.
-      </p>
-
-      {!hasData ? (
-        <Card className="p-6">
-          <p className="text-body-lg text-secondary">
-            Add concepts and start practising — your insights appear here as data accrues.
-          </p>
-        </Card>
-      ) : (
-        <div className="grid gap-6">
+    <>
+      <PageHeader
+        title="Dashboard"
+        chips={
+          hasData ? (
+            <>
+              <Badge tone={readiness.onTrack ? "success" : "neutral"}>
+                {Math.round(readiness.expected)} / {totalMarks}
+              </Badge>
+              <Badge>{streak.current} day streak</Badge>
+            </>
+          ) : undefined
+        }
+      />
+      <div className="mx-auto max-w-shell px-6 py-8 md:px-8">
+        {!hasData ? (
+          <Card className="p-6">
+            <p className="text-body-lg text-secondary">
+              Add concepts and start practising — your insights appear here as data accrues.
+            </p>
+          </Card>
+        ) : (
+          <div className="grid gap-6">
           <div className="grid gap-6 md:grid-cols-[2fr_1fr]">
             <ReadinessCard readiness={readiness} totalMarks={totalMarks} targetMarks={targetMarks} />
             <StreakCounter streak={streak} />
@@ -81,9 +92,10 @@ export default async function DashboardPage() {
             <MasteryHeatmap cells={heatmap} />
           </Card>
 
-          <CoverageBars rows={coverage} />
-        </div>
-      )}
-    </div>
+            <CoverageBars rows={coverage} />
+          </div>
+        )}
+      </div>
+    </>
   );
 }

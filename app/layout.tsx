@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Sidebar, MobileTabBar } from "@/components/Sidebar";
 import { SectionTabs } from "@/components/SectionTabs";
+import { CommandPalette } from "@/components/CommandPalette";
 
 export const metadata: Metadata = {
   title: "RRB NTPC — Personal Learning Platform",
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </main>
         </div>
         <MobileTabBar />
+        <CommandPalette />
       </body>
     </html>
   );
