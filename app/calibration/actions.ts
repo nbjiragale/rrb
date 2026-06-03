@@ -13,13 +13,15 @@ export async function refitCalibrationAction(): Promise<RefitState> {
   if (!r.fitted) {
     return {
       ok: false,
-      message: `Not enough graded attempts yet (have ${r.nSamples}; need ≥ 5). Keep practising.`,
+      message: `Need a few more answers first — you have ${r.nSamples} of the 5 needed. Rate your confidence in Practice and check back.`,
     };
   }
   return {
     ok: true,
-    message: `Refit on ${r.nSamples} attempts. ${
-      r.evThreshold != null ? `Attempt when confidence ≥ ${r.evThreshold.toFixed(1)}/5.` : ""
+    message: `Updated from ${r.nSamples} answer${r.nSamples === 1 ? "" : "s"}.${
+      r.evThreshold != null
+        ? ` Worth attempting once you're at least ${r.evThreshold.toFixed(1)}/5 sure.`
+        : ""
     }`,
   };
 }

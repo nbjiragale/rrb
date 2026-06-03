@@ -59,7 +59,7 @@ export const NAV_GROUPS: NavGroup[] = [
     intent: "settings",
     tabs: [
       { href: "/exam", label: "Exam" },
-      { href: "/calibration", label: "Calibration" },
+      { href: "/calibration", label: "Confidence" },
       { href: "/ingest", label: "Ingest" },
       { href: "/import/testbook", label: "Import" },
       { href: "/generate", label: "Generate" },

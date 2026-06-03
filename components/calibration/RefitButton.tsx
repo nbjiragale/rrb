@@ -22,7 +22,7 @@ export function RefitButton() {
   return (
     <div className="flex items-center gap-3">
       <Button variant="secondary" onClick={run} disabled={pending}>
-        {pending ? "Refitting…" : "Recompute calibration"}
+        {pending ? "Updating…" : "Update report"}
       </Button>
       {msg && <span className={`text-small ${msg.ok ? "text-success" : "text-danger"}`}>{msg.text}</span>}
     </div>
