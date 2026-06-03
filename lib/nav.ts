@@ -108,6 +108,15 @@ export const PALETTE_ITEMS: NavTab[] = [
   ...NAV_EXTRAS,
 ];
 
+// Focus routes hide the rail, section tabs, and mobile bar for distraction-free
+// single-task immersion (UIredesignspec §5.1 / §10.2). The command palette stays
+// mounted so ⌘K can still navigate out.
+export const FOCUS_ROUTES = ["/review"];
+
+export function isFocusRoute(pathname: string): boolean {
+  return FOCUS_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"));
+}
+
 // A route belongs to a tab when it matches exactly or is a nested sub-route.
 export function isActiveHref(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";

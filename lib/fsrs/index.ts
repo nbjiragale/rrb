@@ -76,3 +76,25 @@ export function schedule(card: Card, rating: Rating, now = new Date()): Schedule
     lapses: c.lapses,
   };
 }
+
+// Human "next due" per rating, for the review rating buttons (Anki-style). Pure.
+export function previewIntervals(card: Card, now = new Date()): Record<Rating, string> {
+  const out = {} as Record<Rating, string>;
+  for (const rating of [1, 2, 3, 4] as Rating[]) {
+    const due = schedule(card, rating, now).due_at;
+    out[rating] = formatInterval(due.getTime() - now.getTime());
+  }
+  return out;
+}
+
+function formatInterval(ms: number): string {
+  const min = Math.round(ms / 60000);
+  if (min < 60) return `${Math.max(1, min)}m`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `${hr}h`;
+  const day = Math.round(hr / 24);
+  if (day < 30) return `${day}d`;
+  const mo = Math.round(day / 30);
+  if (mo < 12) return `${mo}mo`;
+  return `${Math.max(1, Math.round(day / 365))}y`;
+}
