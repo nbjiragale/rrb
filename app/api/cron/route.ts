@@ -22,9 +22,25 @@ export const dynamic = "force-dynamic";
 // P1: auto-generate grounded CA cards (scrape→study loop) and replenish verified
 //     practice questions for weak concepts — both bounded for cost (Hard Rule §4).
 //
-// Every step is isolated: a failure is recorded and the batch continues, so one
-// flaky LLM call can't starve later steps (notably the plan, which runs last).
-// Order still matters for freshness — profile reads calibration + diagnoses.
+// ORDERED BY COST, IN TWO PHASES. The LLM steps make up to ~85 sequential
+// provider calls on a busy night (diagnosePending alone is one per pending
+// attempt), each able to burn LLM_TIMEOUT_MS. That overruns any serverless
+// wall-clock limit, and a timeout kills the whole invocation — safe() below
+// catches exceptions, not the clock. So the cheap DB-only steps run FIRST and
+// are effectively guaranteed to land; the billed LLM work runs after, where
+// being cut short costs only freshness.
+//
+// This matters most for the plan: it makes zero LLM calls (pure computation over
+// mastery + exam weights) yet is the most user-visible output — a stale plan is
+// what the learner actually notices. Running it last put it behind every
+// expensive call; running it in phase 1 makes it the first thing secured.
+//
+// Dependencies preserved by this order:
+//   pyqStats → plan      (exam_weight drives PRIORITY)
+//   calibration → profile, diagnose → profile   (profile reads both)
+// Phase 2's CA cards land in card.state='new', which countDue() excludes from
+// `due`, so generating them after the plan does not change the plan's inputs.
+//
 // Requires CRON_SECRET (fails closed when unset — Vercel Cron sends it as the
 // Authorization bearer automatically). This endpoint runs billed LLM jobs.
 export async function GET(req: Request) {
@@ -45,10 +61,16 @@ export async function GET(req: Request) {
     }
   }
 
+  // --- Phase 1: DB-only. No provider calls, sub-second, must not be starved. ---
   const stats = await safe("pyqStats", () => recomputePyqStats());
+  const calibration = await safe("calibration", () => refitCalibration());
+  const snapshots = await safe("snapshots", () => recordDailySnapshots());
+  const plan = await safe("plan", () => generateTodayPlan({ lowEnergy: false }));
+
+  // --- Phase 2: billed provider calls. Best-effort; a timeout here costs only
+  // freshness, because everything above has already been committed. ---
   const diagnosis = await safe("diagnose", () => diagnosePending());
   const embeddings = await safe("embeddings", () => backfillEmbeddings());
-  const calibration = await safe("calibration", () => refitCalibration());
   // Ingest fresh CA before summarising/generating so new items get a digest
   // summary and grounded cards in the same nightly run. CA_INGEST_PROVIDER picks
   // the strategy: "gemini" fetches via grounded Google Search, otherwise the
@@ -59,9 +81,8 @@ export async function GET(req: Request) {
   const caSummaries = await safe("caSummaries", () => summarizePendingCa());
   const caCards = await safe("caCards", () => autoGenerateCaCards());
   const replenish = await safe("replenishQuestions", () => autoReplenishQuestions());
-  const snapshots = await safe("snapshots", () => recordDailySnapshots());
+  // Last: reads this run's fresh calibration (phase 1) and diagnoses (above).
   const profile = await safe("profile", () => regenerateProfile());
-  const plan = await safe("plan", () => generateTodayPlan({ lowEnergy: false }));
 
   return NextResponse.json({
     ok: errors.length === 0,
