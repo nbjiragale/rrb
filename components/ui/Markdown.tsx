@@ -1,4 +1,6 @@
+import { memo } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
+import type { PluggableList } from "unified";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 // Single newlines render as line breaks, matching the whitespace-pre-wrap
@@ -14,6 +16,11 @@ import rehypeKatex from "rehype-katex";
 // warnings, which LLM-authored LaTeX trips constantly (unicode text, \text
 // spacing) and which would otherwise flood the console.
 const katexOptions = { errorColor: "var(--danger)", strict: "ignore" as const };
+
+// Hoisted so react-markdown gets a stable plugin list instead of rebuilding its
+// processor from fresh arrays on every render.
+const remarkPlugins: PluggableList = [remarkGfm, remarkMath, remarkBreaks];
+const rehypePlugins: PluggableList = [[rehypeKatex, katexOptions]];
 
 // Phrasing-level renderers — valid inside a <button> or any inline context, so
 // both the block and inline variants share them.
@@ -202,7 +209,11 @@ function normalizeMath(src: string): string {
     .join("");
 }
 
-export function Markdown({
+// Memoised: parsing markdown and laying out KaTeX costs ~4ms for a math
+// question, and this sits inside components that re-render for unrelated
+// reasons — every composer keystroke, every exam timer tick. All three props
+// are primitives, so the default shallow compare is exact.
+export const Markdown = memo(function Markdown({
   children,
   className = "text-body-lg text-primary",
   inline = false,
@@ -215,8 +226,8 @@ export function Markdown({
 }) {
   const markdown = (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm, remarkMath, remarkBreaks]}
-      rehypePlugins={[[rehypeKatex, katexOptions]]}
+      remarkPlugins={remarkPlugins}
+      rehypePlugins={rehypePlugins}
       components={inline ? inlineComponents : components}
     >
       {normalizeMath(children)}
@@ -231,4 +242,4 @@ export function Markdown({
       {markdown}
     </div>
   );
-}
+});

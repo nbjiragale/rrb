@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Markdown } from "@/components/ui/Markdown";
 import { submitMockAction } from "@/app/mock/actions";
@@ -13,6 +13,47 @@ function fmt(s: number) {
   const m = Math.floor(s / 60);
   const sec = s % 60;
   return `${m}:${String(sec).padStart(2, "0")}`;
+}
+
+function remainingSeconds(startedAt: number, timeLimitS: number) {
+  return Math.max(0, timeLimitS - Math.floor((Date.now() - startedAt) / 1000));
+}
+
+// Owns the 1Hz tick so the clock re-renders this <span> alone. Ticking in the
+// runner instead re-rendered the stem, options, and whole palette every second,
+// which made KaTeX re-layout the question once per second for the entire exam.
+function ExamTimer({
+  startedAt,
+  timeLimitS,
+  onExpire,
+}: {
+  startedAt: number;
+  timeLimitS: number;
+  onExpire: () => void;
+}) {
+  const [remaining, setRemaining] = useState(() => remainingSeconds(startedAt, timeLimitS));
+  // Ref so a fresh callback identity each render never restarts the interval.
+  const expire = useRef(onExpire);
+  expire.current = onExpire;
+
+  useEffect(() => {
+    if (remainingSeconds(startedAt, timeLimitS) <= 0) {
+      expire.current();
+      return;
+    }
+    const t = setInterval(() => {
+      const r = remainingSeconds(startedAt, timeLimitS);
+      setRemaining(r);
+      if (r <= 0) {
+        clearInterval(t);
+        expire.current();
+      }
+    }, 1000);
+    return () => clearInterval(t);
+  }, [startedAt, timeLimitS]);
+
+  const tone = remaining < 60 ? "text-danger" : remaining < 300 ? "text-warning" : "text-primary";
+  return <span className={`font-mono text-h2 ${tone}`}>{fmt(remaining)}</span>;
 }
 
 interface PacingEntry {
@@ -64,15 +105,6 @@ export function MockRunner({
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  // Tick once a second so the timer derived from wall clock re-renders.
-  const [, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
-
-  const remaining = Math.max(0, timeLimitS - Math.floor((Date.now() - startedAt) / 1000));
-
   async function submit() {
     if (submitted) return;
     setSubmitted(true);
@@ -85,14 +117,6 @@ export function MockRunner({
     const analysis = await submitMockAction(payload);
     onDone(analysis);
   }
-
-  // Auto-submit at time-up.
-  useEffect(() => {
-    if (remaining <= 0 && !submitted) {
-      void submit();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [remaining, submitted]);
 
   function choose(option: number) {
     setRun((prev) => {
@@ -114,8 +138,6 @@ export function MockRunner({
   }
 
   const q = questions[current];
-  const timerTone =
-    remaining < 60 ? "text-danger" : remaining < 300 ? "text-warning" : "text-primary";
 
   // Exam keyboard: A–D select/clear, ←/→ navigate (UIredesignspec §12).
   useEffect(() => {
@@ -142,7 +164,7 @@ export function MockRunner({
     <div className="mx-auto max-w-column px-6 py-6">
       {/* Sticky exam bar */}
       <div className="sticky top-0 z-10 mb-4 flex items-center justify-between border-b border-border bg-canvas py-3">
-        <span className={`font-mono text-h2 ${timerTone}`}>{fmt(remaining)}</span>
+        <ExamTimer startedAt={startedAt} timeLimitS={timeLimitS} onExpire={submit} />
         <div className="flex items-center gap-3">
           <span className="text-small text-muted">
             {answers.filter((a) => a !== null).length}/{questions.length} answered
