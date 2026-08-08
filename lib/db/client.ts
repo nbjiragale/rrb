@@ -18,14 +18,40 @@ declare global {
   var __pgPool: Pool | undefined;
 }
 
-const pool =
-  global.__pgPool ??
-  new Pool({
-    connectionString: process.env.DATABASE_URL,
-    max: 5,
-  });
+let cachedPool: Pool | undefined;
 
-if (process.env.NODE_ENV !== "production") global.__pgPool = pool;
+// Built on first query rather than at import time: `next build` loads route
+// modules without a database, and pg treats a missing connection string as
+// "connect to localhost", turning a config mistake into an empty AggregateError
+// from a host that was never the target.
+function getPool(): Pool {
+  const existing = cachedPool ?? global.__pgPool;
+  if (existing) return existing;
+
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error(
+      "DATABASE_URL is not set — copy .env.example to .env and fill it in. " +
+        "Note that a git worktree does not inherit the main checkout's .env."
+    );
+  }
+
+  const pool = new Pool({ connectionString, max: 5 });
+  cachedPool = pool;
+  if (process.env.NODE_ENV !== "production") global.__pgPool = pool;
+  return pool;
+}
+
+// Node tries every address a host resolves to and, when they all fail, throws
+// an AggregateError whose own message is empty — which surfaces in Next as "no
+// message was provided". Lift the underlying causes into the message.
+function withCauses(err: unknown): unknown {
+  if (err instanceof AggregateError && Array.isArray(err.errors)) {
+    const causes = err.errors.map((e) => (e instanceof Error ? e.message : String(e)));
+    return new Error(`database connection failed: ${causes.join("; ")}`, { cause: err });
+  }
+  return err;
+}
 
 // Anything with `.query` — the pool, or a client inside a transaction.
 export type Executor = Pick<Pool, "query"> | Pick<PoolClient, "query">;
@@ -33,16 +59,20 @@ export type Executor = Pick<Pool, "query"> | Pick<PoolClient, "query">;
 export async function query<T = Record<string, unknown>>(
   text: string,
   params: unknown[] = [],
-  executor: Executor = pool
+  executor?: Executor
 ): Promise<T[]> {
-  const res = await executor.query(text, params);
-  return res.rows as T[];
+  try {
+    const res = await (executor ?? getPool()).query(text, params);
+    return res.rows as T[];
+  } catch (err) {
+    throw withCauses(err);
+  }
 }
 
 export async function queryOne<T = Record<string, unknown>>(
   text: string,
   params: unknown[] = [],
-  executor: Executor = pool
+  executor?: Executor
 ): Promise<T | null> {
   const rows = await query<T>(text, params, executor);
   return rows[0] ?? null;
@@ -53,7 +83,12 @@ export async function queryOne<T = Record<string, unknown>>(
 export async function withTransaction<T>(
   fn: (client: PoolClient) => Promise<T>
 ): Promise<T> {
-  const client = await pool.connect();
+  let client: PoolClient;
+  try {
+    client = await getPool().connect();
+  } catch (err) {
+    throw withCauses(err);
+  }
   try {
     await client.query("BEGIN");
     const result = await fn(client);
@@ -66,5 +101,3 @@ export async function withTransaction<T>(
     client.release();
   }
 }
-
-export { pool };

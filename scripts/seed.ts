@@ -1,6 +1,10 @@
 // Optional seed: one exam_config + a couple of concepts/cards so the review loop has data.
 // Usage: DATABASE_URL=... node --experimental-strip-types scripts/seed.ts
-import { Client } from "pg";
+import pg from "pg";
+import { EXAM_PATTERN } from "../lib/syllabus.ts";
+
+// `pg` is CommonJS — named imports fail under Node's ESM loader.
+const { Client } = pg;
 
 async function main() {
   const url = process.env.DATABASE_URL;
@@ -8,26 +12,47 @@ async function main() {
   const client = new Client({ connectionString: url });
   await client.connect();
 
-  // RRB NTPC CBT-1 structure (A1).
+  // RRB NTPC graduate-level CBT-1 structure (A1). The paper is timed as a
+  // whole, so per-section time_s is 0 and duration lives with the pattern.
+  const cbt1 = EXAM_PATTERN.cbt1;
   await client.query(
     `INSERT INTO exam_config (exam_name, exam_date, negative_mark_ratio, locale, sections)
-     SELECT 'RRB NTPC', NULL, 0.3333, 'en', $1::jsonb
+     SELECT 'RRB NTPC', NULL, $1, 'en', $2::jsonb
      WHERE NOT EXISTS (SELECT 1 FROM exam_config)`,
     [
-      JSON.stringify([
-        { name: "Mathematics", questions: 30, marks: 30, time_s: 0 },
-        { name: "General Intelligence & Reasoning", questions: 30, marks: 30, time_s: 0 },
-        { name: "General Awareness", questions: 40, marks: 40, time_s: 0 },
-      ]),
+      cbt1.negative_mark_ratio,
+      JSON.stringify(
+        cbt1.sections.map((s) => ({ name: s.name, questions: s.questions, marks: s.marks, time_s: 0 }))
+      ),
     ]
   );
 
-  const polity = await client.query(
-    `INSERT INTO concept (name, subject, topic, subtopic)
-     VALUES ('President''s pardon power (Art. 72)', 'ga', 'Indian Polity', 'Powers of the President')
-     RETURNING id`
+  // Concept names must stay unique — the ontology seed wires concept_edge by
+  // name, so a duplicate would silently point edges at the wrong row.
+  const upsertConcept = async (
+    name: string,
+    subject: string,
+    topic: string,
+    subtopic: string | null
+  ): Promise<number> => {
+    const existing = await client.query<{ id: number }>(
+      `SELECT id FROM concept WHERE name = $1 AND subject = $2 AND topic = $3`,
+      [name, subject, topic]
+    );
+    if (existing.rows[0]) return existing.rows[0].id;
+    const created = await client.query<{ id: number }>(
+      `INSERT INTO concept (name, subject, topic, subtopic) VALUES ($1, $2, $3, $4) RETURNING id`,
+      [name, subject, topic, subtopic]
+    );
+    return created.rows[0].id;
+  };
+
+  const conceptId = await upsertConcept(
+    "President's pardon power (Art. 72)",
+    "ga",
+    "Indian Polity",
+    "Powers of the President"
   );
-  const conceptId = polity.rows[0].id;
 
   await client.query(
     `INSERT INTO card (concept_id, front, back, card_type, state)
@@ -51,14 +76,13 @@ async function main() {
   );
 
   // A math + reasoning concept with one PYQ each, so a full mock spans sections.
-  const math = await client.query(
-    `INSERT INTO concept (name, subject, topic) VALUES ('Percentages', 'math', 'Arithmetic') RETURNING id`
-  );
+  // Both names match the ontology seed, so whichever runs first wins the row.
+  const mathId = await upsertConcept("Percentages", "math", "Arithmetic", null);
   await client.query(
     `INSERT INTO question (concept_id, stem, options, correct_option, explanation, source, exam_year, exam_stage, verified)
      VALUES ($1, $2, $3::jsonb, $4, $5, 'pyq', 2021, 'cbt1', true)`,
     [
-      math.rows[0].id,
+      mathId,
       "What is 15% of 240?",
       JSON.stringify(["30", "36", "40", "45"]),
       1,
@@ -66,14 +90,12 @@ async function main() {
     ]
   );
 
-  const reasoning = await client.query(
-    `INSERT INTO concept (name, subject, topic) VALUES ('Number series', 'reasoning', 'Series') RETURNING id`
-  );
+  const reasoningId = await upsertConcept("Number Series", "reasoning", "Series", null);
   await client.query(
     `INSERT INTO question (concept_id, stem, options, correct_option, explanation, source, exam_year, exam_stage, verified)
      VALUES ($1, $2, $3::jsonb, $4, $5, 'pyq', 2021, 'cbt1', true)`,
     [
-      reasoning.rows[0].id,
+      reasoningId,
       "Find the next term: 2, 6, 12, 20, ?",
       JSON.stringify(["28", "30", "32", "42"]),
       1,

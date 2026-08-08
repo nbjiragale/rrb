@@ -85,7 +85,11 @@ npm test   # pure unit tests (BKT student model), no DB needed
    For the AI tutor, diagnosis, and question/card generation, set `LLM_BASE_URL` / `LLM_API_KEY` (and optional model names) in `.env`. For semantic recall / Feynman embeddings set `EMBED_BASE_URL` / `EMBED_API_KEY` / `EMBED_MODEL` (any OpenAI-compatible 1024-d embeddings host). All these features degrade gracefully when unconfigured — text is stored now and embedded by the nightly batch once a provider is set.
 4. **Seed the concept ontology** (recommended — the RRB NTPC syllabus tree + its
    prerequisite/contrast graph, so the planner and tutor have something to work
-   with from day one). Idempotent, so it's safe to re-run:
+   with from day one). The tree is defined in `lib/syllabus.ts`, where every
+   concept declares which published syllabus line it covers; `lib/syllabus.test.ts`
+   fails if any line of the graduate-level syllabus is left without a concept, and
+   the seed refuses to run against an incomplete ontology. Idempotent, so it's
+   safe to re-run:
    ```bash
    npm run db:seed:ontology
    ```
@@ -106,6 +110,7 @@ app/            App Router: /review (loop), /cards, /concepts
 components/      ui/ primitives + review session + sidebar
 lib/db/         pg client, typed query layer (one file per domain)
 lib/fsrs/       ts-fsrs wrapper (schedule a card from a rating)
+lib/syllabus.ts published RRB NTPC syllabus + the concept ontology covering it
 migrations/     numbered SQL; 0001 = v1 tables
 scripts/        migrate + seed runners
 ```
