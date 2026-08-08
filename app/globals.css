@@ -62,6 +62,13 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Long display equations scroll inside their column instead of widening it. */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-block: 2px;
+}
+
 /* Gentle motion only; respect reduced-motion. */
 @media (prefers-reduced-motion: reduce) {
   *,

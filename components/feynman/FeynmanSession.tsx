@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Label, Select, Textarea } from "@/components/ui/Field";
+import { Markdown } from "@/components/ui/Markdown";
 import { gradeFeynmanAction, type FeynmanResult } from "@/app/feynman/actions";
 import type { Concept } from "@/lib/db/types";
 
@@ -61,7 +62,9 @@ export function FeynmanSession({ concepts }: { concepts: Concept[] }) {
             <Badge tone={RATING_TONE[result.feedback.rating]}>{result.feedback.rating}</Badge>
             <span className="text-h3">Feedback</span>
           </div>
-          <p className="text-body-lg max-w-read whitespace-pre-wrap">{result.feedback.assessment}</p>
+          <Markdown className="max-w-read text-body-lg text-primary">
+            {result.feedback.assessment}
+          </Markdown>
           {result.feedback.gaps.length > 0 && (
             <div className="mt-4">
               <p className="text-caption uppercase tracking-[0.02em] text-secondary mb-2">Gaps to close</p>

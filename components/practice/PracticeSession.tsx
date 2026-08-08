@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Segmented } from "@/components/ui/Segmented";
+import { Markdown } from "@/components/ui/Markdown";
 import {
   submitPracticeAttempt,
   diagnoseAttemptAction,
@@ -112,7 +113,7 @@ export function PracticeSession({ questions }: { questions: PracticeQuestion[] }
       </p>
 
       <Card className="p-6">
-        <p className="text-body-lg whitespace-pre-wrap">{current.stem}</p>
+        <Markdown>{current.stem}</Markdown>
 
         <div className="mt-5 grid gap-3">
           {current.options.map((opt, i) => (
@@ -123,7 +124,10 @@ export function PracticeSession({ questions }: { questions: PracticeQuestion[] }
               onClick={() => setSelected(i)}
               className={optionClass({ index: i, selected, result })}
             >
-              {opt}
+              {/* Empty className: inherit the row's own type and state colors. */}
+              <Markdown inline className="">
+                {opt}
+              </Markdown>
             </button>
           ))}
         </div>
@@ -158,7 +162,7 @@ export function PracticeSession({ questions }: { questions: PracticeQuestion[] }
           </div>
           {result.explanation && (
             <div className="mb-4 rounded-lg bg-subtle p-4">
-              <p className="text-body whitespace-pre-wrap text-secondary">{result.explanation}</p>
+              <Markdown className="text-body text-secondary">{result.explanation}</Markdown>
             </div>
           )}
           {!result.isCorrect && diagnosis && (

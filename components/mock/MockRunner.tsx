@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { Markdown } from "@/components/ui/Markdown";
 import { submitMockAction } from "@/app/mock/actions";
 import { useFocusMode } from "@/components/FocusContext";
 import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
@@ -186,7 +187,7 @@ export function MockRunner({
       </div>
 
       <p className="mb-2 text-small text-muted">Question {current + 1}</p>
-      <p className="text-body-lg whitespace-pre-wrap">{q.stem}</p>
+      <Markdown>{q.stem}</Markdown>
 
       <div className="mt-5 grid gap-3">
         {q.options.map((opt, i) => (
@@ -202,7 +203,9 @@ export function MockRunner({
             <span className="mt-0.5 font-mono text-caption text-muted">
               {String.fromCharCode(65 + i)}
             </span>
-            <span className="whitespace-pre-wrap">{opt}</span>
+            <Markdown inline className="">
+              {opt}
+            </Markdown>
           </button>
         ))}
       </div>

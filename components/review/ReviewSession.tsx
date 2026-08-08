@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
+import { Markdown } from "@/components/ui/Markdown";
 import { rateCard } from "@/app/review/actions";
 import { previewIntervals } from "@/lib/fsrs";
 import type { DueCard, Rating } from "@/lib/db/types";
@@ -130,11 +131,11 @@ export function ReviewSession({ initialQueue }: { initialQueue: DueCard[] }) {
           </div>
 
           <Card className="p-8">
-            <p className="whitespace-pre-wrap text-body-lg">{current.front}</p>
+            <Markdown>{current.front}</Markdown>
             {revealed && (
               <>
                 <hr className="my-6 border-t border-border" />
-                <p className="whitespace-pre-wrap text-body-lg text-primary">{current.back}</p>
+                <Markdown>{current.back}</Markdown>
               </>
             )}
           </Card>

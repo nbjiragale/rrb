@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Segmented } from "@/components/ui/Segmented";
 import { Label, Select, Input, Textarea } from "@/components/ui/Field";
+import { Markdown } from "@/components/ui/Markdown";
 import {
   saveNoteAction,
   recallAction,
@@ -102,9 +103,9 @@ export function RecallWorkspace({
         </div>
         <p className="text-body whitespace-pre-wrap">{m.content}</p>
         {m.ai_feedback && (
-          <p className="mt-2 border-t border-border pt-2 text-small text-secondary whitespace-pre-wrap">
-            {m.ai_feedback}
-          </p>
+          <div className="mt-2 border-t border-border pt-2">
+            <Markdown className="text-small text-secondary">{m.ai_feedback}</Markdown>
+          </div>
         )}
       </Card>
     );
